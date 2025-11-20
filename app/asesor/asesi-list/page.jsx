@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { useAuth } from "@/lib/auth-context";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -23,20 +23,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 const ITEMS_PER_PAGE = 20;
 
 // ===============================================================
-// KOMPONEN BARU: TaskModalButton (Untuk memilih tugas)
+// KOMPONEN: TaskModalButton 
 // ===============================================================
-// --- (PERUBAHAN 1: Tambahkan 'asesiNama' sebagai prop) ---
 const TaskModalButton = ({ label, tasks, variant, icon: Icon, buttonClassName = "", asesiNama }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   // Jika hanya 1 tugas, langsung buat link. Tidak perlu modal.
   if (tasks.length === 1) {
     return (
-      <Button asChild variant={variant} size="sm" className={`h-auto py-1 px-2 text-xs ${buttonClassName}`}>
+      <Button asChild variant={variant} size="sm" className={cn("h-auto py-1 px-2 text-xs", buttonClassName)}>
         <Link href={`/asesor/grading/${tasks[0].id}`} title={`Klik untuk ${label}`}>
           <span className="flex items-center gap-1.5">
             <Icon className="w-3.5 h-3.5" />
@@ -51,7 +51,7 @@ const TaskModalButton = ({ label, tasks, variant, icon: Icon, buttonClassName = 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant={variant} size="sm" className={`h-auto py-1 px-2 text-xs ${buttonClassName}`}>
+        <Button variant={variant} size="sm" className={cn("h-auto py-1 px-2 text-xs", buttonClassName)}>
           <span className="flex items-center gap-1.5">
             <Icon className="w-3.5 h-3.5" />
             {tasks.length} {label}
@@ -63,7 +63,6 @@ const TaskModalButton = ({ label, tasks, variant, icon: Icon, buttonClassName = 
           <DialogTitle>
             {label === "Selesai" ? "Pilih Tugas Untuk Melihat Penilaian" : "Pilih Tugas Untuk Dinilai"}
           </DialogTitle>
-          {/* --- (PERUBAHAN 2: Ganti teks "Asesi ini" dengan nama) --- */}
           <DialogDescription>
             <span className="font-semibold text-foreground">{asesiNama}</span> memiliki {tasks.length} tugas yang {label.toLowerCase()} dinilai.
           </DialogDescription>
@@ -108,6 +107,7 @@ export default function AsesiListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSkema, setFilterSkema] = useState("SEMUA");
   const [filterKelas, setFilterKelas] = useState("SEMUA");
+  const [filterStatus, setFilterStatus] = useState("SEMUA");
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -174,7 +174,7 @@ export default function AsesiListPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterKelas, searchTerm]);
+  }, [filterKelas, searchTerm, filterStatus]);
 
 
   const filteredAsesi = useMemo(() => {
@@ -188,10 +188,17 @@ export default function AsesiListPage() {
         const matchKelas = 
           filterKelas === "SEMUA" || a.kelas === filterKelas;
           
-        return matchSearch && matchSkema && matchKelas;
+        let matchStatus = true;
+        if (filterStatus === "BELUM_SELESAI") {
+            matchStatus = a.pendingTasks.length > 0;
+        } else if (filterStatus === "SUDAH_SELESAI") {
+            matchStatus = a.pendingTasks.length === 0 && a.completedTasks.length > 0;
+        }
+          
+        return matchSearch && matchSkema && matchKelas && matchStatus;
       }
     )
-  }, [asesiList, searchTerm, filterSkema, filterKelas]);
+  }, [asesiList, searchTerm, filterSkema, filterKelas, filterStatus]);
 
   const totalPages = Math.ceil(filteredAsesi.length / ITEMS_PER_PAGE);
 
@@ -211,7 +218,7 @@ export default function AsesiListPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Filter & Cari Asesi</CardTitle>
+            {/* PERBAIKAN 1: Menghapus CardTitle "Filter & Cari Asesi" */}
             
             <div className="mt-4 flex flex-col md:flex-row gap-4 items-end">
               
@@ -244,6 +251,19 @@ export default function AsesiListPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="md:w-56">
+                  <Label htmlFor="filter-status">Filter Status Penilaian</Label>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger id="filter-status" className="mt-1.5 h-10">
+                      <SelectValue placeholder="Semua Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SEMUA">Semua Status</SelectItem>
+                      <SelectItem value="BELUM_SELESAI">Belum Selesai (Pending)</SelectItem>
+                      <SelectItem value="SUDAH_SELESAI">Sudah Selesai</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="flex-1 w-full">
@@ -261,6 +281,12 @@ export default function AsesiListPage() {
               </div>
             </div>
 
+            {/* PERBAIKAN 2: Pindahkan CardDescription (Ringkasan) ke Bawah Box Filter */}
+            <CardDescription className="pt-4">
+                Menampilkan {paginatedAsesi.length} dari {filteredAsesi.length} total asesi.
+            </CardDescription>
+            {/* BATAS PERBAIKAN 2 */}
+
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -276,15 +302,22 @@ export default function AsesiListPage() {
               <Table>
                 <TableHeader className="bg-gray-50">
                   <TableRow>
-                    <TableHead className="w-[35%]">Nama Asesi</TableHead>
-                    <TableHead className="w-[20%]">Kelas</TableHead>
-                    <TableHead className="w-[20%]">Skema</TableHead>
-                    <TableHead className="w-[20%]">Status Penilaian</TableHead>
+                    {/* PENAMBAHAN: Kolom No. */}
+                    <TableHead className="w-[5%] text-center">No.</TableHead>
+                    <TableHead className="w-[30%]">Nama Asesi</TableHead>
+                    <TableHead className="w-[15%]">Kelas</TableHead>
+                    <TableHead className="w-[15%]">Skema</TableHead>
+                    <TableHead className="w-[35%]">Status Penilaian</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedAsesi.map(asesi => (
+                  {paginatedAsesi.map((asesi, index) => (
                     <TableRow key={asesi.id} className="hover:bg-gray-50">
+                      {/* PENAMBAHAN: Menampilkan Nomor Urut */}
+                      <TableCell className="text-center">
+                        {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}.
+                      </TableCell>
+                      {/* BATAS PENAMBAHAN */}
                       <TableCell>
                         <p className="font-medium text-gray-900">{asesi.nama}</p>
                       </TableCell>

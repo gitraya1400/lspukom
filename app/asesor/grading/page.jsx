@@ -2,29 +2,25 @@
 
 "use client";
 
-// 1. Tambahkan useMemo
 import React, { useEffect, useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { useAuth } from "@/lib/auth-context";
-// 2. Tambahkan CardFooter
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"; 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { mockGetPenugasanAsesor } from "@/lib/api-mock";
 import { Skeleton } from "@/components/ui/skeleton";
-// 3. Tambahkan ikon paginasi
 import { CheckCircle2, AlertCircle, Clock, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react"; 
 import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils"; 
 
-// 4. Tambahkan konstanta
 const ITEMS_PER_PAGE = 20;
 
-// 5. Buat komponen helper untuk Footer Paginasi
 const PaginationFooter = ({ totalPages, currentPage, setCurrentPage }) => {
   if (totalPages <= 1) {
-    return null; // Jangan tampilkan paginasi jika hanya 1 halaman
+    return null; 
   }
   
   return (
@@ -56,11 +52,39 @@ const PaginationFooter = ({ totalPages, currentPage, setCurrentPage }) => {
   );
 };
 
+const StatusCard = ({ title, value, filterValue, currentFilter, onClick, loading, icon: Icon }) => {
+    const isSelected = currentFilter === filterValue;
+    let colorClass = "";
+    if (filterValue === "BELUM_DINILAI") colorClass = "text-orange-600";
+    if (filterValue === "SELESAI") colorClass = "text-green-600";
+    
+    return (
+        <Card
+            className={cn(
+                "hover:shadow-md transition-all cursor-pointer h-full border-2",
+                isSelected ? "border-primary ring-2 ring-primary/50" : "border-gray-200"
+            )}
+            onClick={onClick}
+        >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-base font-medium">{title}</CardTitle>
+                <Icon className={cn("h-4 w-4", colorClass)} />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">
+                    {loading ? <Skeleton className="h-6 w-12" /> : value}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
 export default function GradingListPage() {
   const { user } = useAuth();
   const [penugasan, setPenugasan] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  const [activeTab, setActiveTab] = useState("teori");
   const [filterStatus, setFilterStatus] = useState("BELUM_DINILAI");
 
   const [filterKelasTeori, setFilterKelasTeori] = useState("SEMUA");
@@ -68,7 +92,6 @@ export default function GradingListPage() {
   const [filterKelasPraktikum, setFilterKelasPraktikum] = useState("SEMUA");
   const [filterKelasUnjukDiri, setFilterKelasUnjukDiri] = useState("SEMUA");
 
-  // 6. Tambahkan state halaman untuk setiap tab
   const [currentPageTeori, setCurrentPageTeori] = useState(1);
   const [currentPagePraktikum, setCurrentPagePraktikum] = useState(1);
   const [currentPageUnjukDiri, setCurrentPageUnjukDiri] = useState(1);
@@ -79,12 +102,7 @@ export default function GradingListPage() {
     }
   }, [user]);
 
-  // Reset filter kelas jika filter unit berubah
-  useEffect(() => {
-    setFilterKelasTeori("SEMUA");
-  }, [filterUnitTeori]);
-
-  // 7. Tambahkan useEffect untuk reset halaman saat filter berubah
+  // Reset halaman saat filter berubah
   useEffect(() => {
     setCurrentPageTeori(1);
   }, [filterStatus, filterKelasTeori, filterUnitTeori]);
@@ -96,7 +114,11 @@ export default function GradingListPage() {
   useEffect(() => {
     setCurrentPageUnjukDiri(1);
   }, [filterStatus, filterKelasUnjukDiri]);
-  // ---
+  
+  // Reset filter status saat berganti tab
+  useEffect(() => {
+    setFilterStatus("BELUM_DINILAI");
+  }, [activeTab]);
 
   const loadData = async () => {
     try {
@@ -110,43 +132,126 @@ export default function GradingListPage() {
     }
   };
   
-  // --- Logika Filter (Tidak Berubah) ---
-
+  // --- LOGIKA DINAMIS KELAS DAN UNIT ---
+  
+  // 1. Filter Unit List berdasarkan Status
   const unitListTeori = useMemo(() => {
     if (!penugasan) return [];
+    let teoriTasks = penugasan.filter(p => p.tipe === 'TEORI' && p.unitId);
+
+    // FILTER BERDASARKAN STATUS (HANYA tampilkan unit yang relevan)
+    if (filterStatus === "BELUM_DINILAI") {
+        teoriTasks = teoriTasks.filter(p => p.statusPenilaian === 'BELUM_DINILAI');
+    } else if (filterStatus === "SELESAI") {
+        teoriTasks = teoriTasks.filter(p => p.statusPenilaian === 'SELESAI');
+    }
+    
     const unitSet = new Map();
-    penugasan
-      .filter(p => p.tipe === 'TEORI' && p.unitId)
-      .forEach(p => {
+    teoriTasks.forEach(p => {
         if (!unitSet.has(p.unitId)) {
           unitSet.set(p.unitId, `Unit ${p.unitId}: ${p.unitJudul}`);
         }
-      });
+    });
     return Array.from(unitSet.entries()).sort((a, b) => a[0] - b[0]);
-  }, [penugasan]);
+  }, [penugasan, filterStatus]); // Kunci di sini adalah filterStatus
 
+  // 2. Filter Kelas List (Teori) berdasarkan Unit dan Status
   const kelasListTeori = useMemo(() => {
     let teoriTasks = penugasan.filter(p => p.tipe === 'TEORI');
+    
+    // Filter 1: Berdasarkan Unit yang Dipilih
     if (filterUnitTeori !== "SEMUA") {
       teoriTasks = teoriTasks.filter(p => p.unitId == filterUnitTeori);
     }
+    
+    // Filter 2: Berdasarkan Status
+    if (filterStatus === "BELUM_DINILAI") {
+        teoriTasks = teoriTasks.filter(p => p.statusPenilaian === 'BELUM_DINILAI');
+    } else if (filterStatus === "SELESAI") {
+        teoriTasks = teoriTasks.filter(p => p.statusPenilaian === 'SELESAI');
+    }
+    
     const kelasSet = new Set(teoriTasks.map(p => p.asesiKelas).filter(Boolean));
     return Array.from(kelasSet).sort();
-  }, [penugasan, filterUnitTeori]);
-
+  }, [penugasan, filterUnitTeori, filterStatus]); 
+  
+  // 3. Filter Kelas List (Praktikum) berdasarkan Status
   const kelasListPraktikum = useMemo(() => {
-    const praktikumTasks = penugasan.filter(p => p.tipe === 'PRAKTIKUM');
+    let praktikumTasks = penugasan.filter(p => p.tipe === 'PRAKTIKUM');
+
+    if (filterStatus === "BELUM_DINILAI") {
+        praktikumTasks = praktikumTasks.filter(p => p.statusPenilaian === 'BELUM_DINILAI');
+    } else if (filterStatus === "SELESAI") {
+        praktikumTasks = praktikumTasks.filter(p => p.statusPenilaian === 'SELESAI');
+    }
+    
     const kelasSet = new Set(praktikumTasks.map(p => p.asesiKelas).filter(Boolean));
     return Array.from(kelasSet).sort();
-  }, [penugasan]);
+  }, [penugasan, filterStatus]);
 
+  // 4. Filter Kelas List (Unjuk Diri) berdasarkan Status
   const kelasListUnjukDiri = useMemo(() => {
-    const unjukDiriTasks = penugasan.filter(p => p.tipe === 'UNJUK_DIRI');
+    let unjukDiriTasks = penugasan.filter(p => p.tipe === 'UNJUK_DIRI');
+
+    if (filterStatus === "BELUM_DINILAI") {
+        unjukDiriTasks = unjukDiriTasks.filter(p => p.statusPenilaian === 'BELUM_DINILAI');
+    } else if (filterStatus === "SELESAI") {
+        unjukDiriTasks = unjukDiriTasks.filter(p => p.statusPenilaian === 'SELESAI');
+    }
+    
     const kelasSet = new Set(unjukDiriTasks.map(p => p.asesiKelas).filter(Boolean));
     return Array.from(kelasSet).sort();
-  }, [penugasan]);
+  }, [penugasan, filterStatus]);
+
+  // --- VALIDASI OTOMATIS: Reset filter jika pilihan tidak valid ---
   
-  // ---------------------------------
+  // Reset filter Unit jika pilihan tidak lagi tersedia (karena Filter Status berubah)
+  useEffect(() => {
+    const unitIds = unitListTeori.map(([id]) => String(id));
+    if (filterUnitTeori !== "SEMUA" && !unitIds.includes(filterUnitTeori)) {
+      setFilterUnitTeori("SEMUA");
+    }
+  }, [unitListTeori]); 
+
+  // Reset filter Kelas Teori jika pilihan tidak lagi tersedia (karena Unit/Status berubah)
+  useEffect(() => {
+    if (filterKelasTeori !== "SEMUA" && !kelasListTeori.includes(filterKelasTeori)) {
+      setFilterKelasTeori("SEMUA");
+    }
+  }, [kelasListTeori]);
+  
+  // Reset filter Kelas Praktikum
+  useEffect(() => {
+    if (filterKelasPraktikum !== "SEMUA" && !kelasListPraktikum.includes(filterKelasPraktikum)) {
+      setFilterKelasPraktikum("SEMUA");
+    }
+  }, [kelasListPraktikum]);
+  
+  // Reset filter Kelas Unjuk Diri
+  useEffect(() => {
+    if (filterKelasUnjukDiri !== "SEMUA" && !kelasListUnjukDiri.includes(filterKelasUnjukDiri)) {
+      setFilterKelasUnjukDiri("SEMUA");
+    }
+  }, [kelasListUnjukDiri]);
+
+
+  // --- PERHITUNGAN STATS DAN PAGINASI (Tidak Berubah) ---
+
+  const statsByTipe = useMemo(() => {
+    const calcStats = (tipe) => {
+        const tasks = penugasan.filter(p => p.tipe === tipe);
+        return {
+            total: tasks.length,
+            pending: tasks.filter(p => p.statusPenilaian === 'BELUM_DINILAI').length,
+            completed: tasks.filter(p => p.statusPenilaian === 'SELESAI').length,
+        };
+    };
+    return {
+        TEORI: calcStats('TEORI'),
+        PRAKTIKUM: calcStats('PRAKTIKUM'),
+        UNJUK_DIRI: calcStats('UNJUK_DIRI'),
+    };
+  }, [penugasan]);
 
   const getFilteredPenugasan = (tipe, kelasFilter, unitFilter) => {
     let filtered = penugasan.filter(p => p.tipe === tipe);
@@ -166,8 +271,6 @@ export default function GradingListPage() {
     return filtered;
   };
 
-  // 8. Pisahkan logika data dari render
-  // Memoize filtered lists
   const fullTeoriList = useMemo(
     () => getFilteredPenugasan("TEORI", filterKelasTeori, filterUnitTeori),
     [penugasan, filterStatus, filterKelasTeori, filterUnitTeori]
@@ -181,7 +284,6 @@ export default function GradingListPage() {
     [penugasan, filterStatus, filterKelasUnjukDiri]
   );
 
-  // Memoize paginated lists
   const { paginatedTeori, totalPagesTeori } = useMemo(() => {
     const totalPages = Math.ceil(fullTeoriList.length / ITEMS_PER_PAGE);
     const paginated = fullTeoriList.slice(
@@ -210,7 +312,6 @@ export default function GradingListPage() {
   }, [fullUnjukDiriList, currentPageUnjukDiri]);
 
 
-  // Komponen PenugasanList (Tidak berubah, tapi sekarang menerima list yang sudah dipaginasi)
   const PenugasanList = ({ list }) => {
     if (loading) {
       return (
@@ -222,16 +323,8 @@ export default function GradingListPage() {
       );
     }
     
-    // 9. Perbarui pesan 'kosong'
     if (list.length === 0) {
-      let message = "Tidak ada tugas penilaian.";
-      // Cek jika list *penuh* (sebelum paginasi) juga kosong
-      if (fullTeoriList.length === 0 && fullPraktikumList.length === 0 && fullUnjukDiriList.length === 0) {
-         message = "Tidak ada tugas untuk tipe ini.";
-      } else {
-         message = "Tidak ada tugas yang cocok dengan filter.";
-      }
-      
+      const message = "Tidak ada tugas yang cocok dengan filter yang diterapkan.";
       return <p className="text-center text-muted-foreground py-8">{message}</p>;
     }
     
@@ -242,7 +335,10 @@ export default function GradingListPage() {
             <div>
               <p className="font-medium">{p.asesiNama}</p>
               <p className="text-sm text-muted-foreground">
-                {p.unitId ? `Unit ${p.unitId}: ${p.unitJudul}` : p.unitJudul}
+                {p.unitId 
+                    ? `Unit ${p.unitId}: ${p.unitJudul}` 
+                    : p.unitJudul.replace(' (Gabungan)', '').trim() // Hapus (Gabungan)
+                }
                 {p.asesiKelas && ` - (Kelas: ${p.asesiKelas})`}
               </p>
             </div>
@@ -265,80 +361,60 @@ export default function GradingListPage() {
           <p className="text-muted-foreground mt-1">Filter dan kelola semua tugas penilaian Anda.</p>
         </div>
 
-        <Tabs defaultValue="teori" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         
           <Card>
             <CardContent className="pt-6 space-y-4">
-              
-              {/* Stats Grid (Filter Status) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card 
-                  className={`hover:shadow-md transition-all cursor-pointer h-full ${filterStatus === "SEMUA" ? "border-primary ring-2 ring-primary/50" : "border-transparent"}`}
-                  onClick={() => setFilterStatus("SEMUA")}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-base font-medium">Semua Tugas</CardTitle>
-                    <CheckSquare className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{loading ? "..." : penugasan.length}</div>
-                  </CardContent>
-                </Card>
-                
-                <Card 
-                  className={`hover:shadow-md transition-all cursor-pointer h-full ${filterStatus === "BELUM_DINILAI" ? "border-primary ring-2 ring-primary/50" : "border-transparent"}`}
-                  onClick={() => setFilterStatus("BELUM_DINILAI")}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-base font-medium">Belum Dinilai</CardTitle>
-                    <AlertCircle className="h-4 w-4 text-orange-600" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{loading ? "..." : penugasan.filter((p) => p.statusPenilaian === "BELUM_DINILAI").length}</div>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className={`hover:shadow-md transition-all cursor-pointer h-full ${filterStatus === "SELESAI" ? "border-primary ring-2 ring-primary/50" : "border-transparent"}`}
-                  onClick={() => setFilterStatus("SELESAI")}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-base font-medium">Selesai</CardTitle>
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{loading ? "..." : penugasan.filter((p) => p.statusPenilaian === "SELESAI").length}</div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* TabsList */}
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="teori">
-                  Ujian Teori
-                </TabsTrigger>
-                <TabsTrigger value="praktikum">
-                  Ujian Praktikum
-                </TabsTrigger>
-                <TabsTrigger value="unjuk-diri">
-                  Unjuk Diri
-                </TabsTrigger>
+                <TabsTrigger value="teori">Ujian Teori</TabsTrigger>
+                <TabsTrigger value="praktikum">Ujian Praktikum</TabsTrigger>
+                <TabsTrigger value="unjuk-diri">Unjuk Diri</TabsTrigger>
               </TabsList>
-            
             </CardContent>
           </Card>
 
-          {/* --- TAB UJIAN TEORI (DENGAN FILTER) --- */}
           <TabsContent value="teori" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatusCard 
+                    title="Semua Tugas Teori" 
+                    value={statsByTipe.TEORI.total} 
+                    icon={CheckSquare}
+                    filterValue="SEMUA"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("SEMUA")}
+                    loading={loading}
+                />
+                <StatusCard 
+                    title="Belum Dinilai" 
+                    value={statsByTipe.TEORI.pending} 
+                    icon={AlertCircle}
+                    filterValue="BELUM_DINILAI"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("BELUM_DINILAI")}
+                    loading={loading}
+                />
+                <StatusCard 
+                    title="Selesai" 
+                    value={statsByTipe.TEORI.completed} 
+                    icon={CheckCircle2}
+                    filterValue="SELESAI"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("SELESAI")}
+                    loading={loading}
+                />
+            </div>
+            
             <Card>
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <CardTitle>Tugas Penilaian Ujian Teori (Esai)</CardTitle>
+                  <CardTitle>Daftar Tugas Ujian Teori (Status: {filterStatus.replace("_", " ")})</CardTitle>
                   <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-                    {/* Filter Kelas */}
                     <div className="flex-1 md:w-40">
                       <Label htmlFor="filter-kelas-teori" className="text-xs font-normal">Filter Kelas</Label>
-                      <Select value={filterKelasTeori} onValueChange={setFilterKelasTeori}>
+                      <Select 
+                        value={filterKelasTeori} 
+                        onValueChange={setFilterKelasTeori}
+                      >
                         <SelectTrigger id="filter-kelas-teori" className="h-9 mt-1 w-full">
                           <SelectValue placeholder="Semua Kelas" />
                         </SelectTrigger>
@@ -350,7 +426,6 @@ export default function GradingListPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {/* Filter Unit */}
                     <div className="flex-1 md:w-56">
                       <Label htmlFor="filter-unit-teori" className="text-xs font-normal">Filter Unit</Label>
                       <Select value={filterUnitTeori} onValueChange={setFilterUnitTeori}>
@@ -372,10 +447,8 @@ export default function GradingListPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Gunakan list paginasi */}
                 <PenugasanList list={paginatedTeori} />
               </CardContent>
-              {/* Tambahkan footer paginasi */}
               <PaginationFooter 
                 totalPages={totalPagesTeori}
                 currentPage={currentPageTeori}
@@ -384,14 +457,42 @@ export default function GradingListPage() {
             </Card>
           </TabsContent>
 
-          {/* --- TAB UJIAN PRAKTIKUM (DENGAN FILTER) --- */}
-          <TabsContent value="praktikum">
+          <TabsContent value="praktikum" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatusCard 
+                    title="Semua Tugas Praktikum" 
+                    value={statsByTipe.PRAKTIKUM.total} 
+                    icon={CheckSquare}
+                    filterValue="SEMUA"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("SEMUA")}
+                    loading={loading}
+                />
+                <StatusCard 
+                    title="Belum Dinilai" 
+                    value={statsByTipe.PRAKTIKUM.pending} 
+                    icon={AlertCircle}
+                    filterValue="BELUM_DINILAI"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("BELUM_DINILAI")}
+                    loading={loading}
+                />
+                <StatusCard 
+                    title="Selesai" 
+                    value={statsByTipe.PRAKTIKUM.completed} 
+                    icon={CheckCircle2}
+                    filterValue="SELESAI"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("SELESAI")}
+                    loading={loading}
+                />
+            </div>
+            
             <Card>
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <CardTitle>Tugas Penilaian Ujian Praktikum</CardTitle>
+                  <CardTitle>Daftar Tugas Ujian Praktikum (Status: {filterStatus.replace("_", " ")})</CardTitle>
                   <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-                    {/* Filter Kelas */}
                     <div className="flex-1 md:w-40">
                       <Label htmlFor="filter-kelas-prak" className="text-xs font-normal">Filter Kelas</Label>
                       <Select value={filterKelasPraktikum} onValueChange={setFilterKelasPraktikum}>
@@ -410,10 +511,8 @@ export default function GradingListPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                 {/* Gunakan list paginasi */}
                 <PenugasanList list={paginatedPraktikum} />
               </CardContent>
-              {/* Tambahkan footer paginasi */}
               <PaginationFooter 
                 totalPages={totalPagesPraktikum}
                 currentPage={currentPagePraktikum}
@@ -422,14 +521,42 @@ export default function GradingListPage() {
             </Card>
           </TabsContent>
 
-          {/* --- TAB UNJUK DIRI (DENGAN FILTER) --- */}
-          <TabsContent value="unjuk-diri">
+          <TabsContent value="unjuk-diri" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatusCard 
+                    title="Semua Tugas Unjuk Diri" 
+                    value={statsByTipe.UNJUK_DIRI.total} 
+                    icon={CheckSquare}
+                    filterValue="SEMUA"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("SEMUA")}
+                    loading={loading}
+                />
+                <StatusCard 
+                    title="Belum Dinilai" 
+                    value={statsByTipe.UNJUK_DIRI.pending} 
+                    icon={AlertCircle}
+                    filterValue="BELUM_DINILAI"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("BELUM_DINILAI")}
+                    loading={loading}
+                />
+                <StatusCard 
+                    title="Selesai" 
+                    value={statsByTipe.UNJUK_DIRI.completed} 
+                    icon={CheckCircle2}
+                    filterValue="SELESAI"
+                    currentFilter={filterStatus}
+                    onClick={() => setFilterStatus("SELESAI")}
+                    loading={loading}
+                />
+            </div>
+            
             <Card>
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <CardTitle>Tugas Penilaian Unjuk Diri</CardTitle>
+                  <CardTitle>Daftar Tugas Unjuk Diri (Status: {filterStatus.replace("_", " ")})</CardTitle>
                   <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-                    {/* Filter Kelas */}
                     <div className="flex-1 md:w-40">
                       <Label htmlFor="filter-kelas-unjuk" className="text-xs font-normal">Filter Kelas</Label>
                       <Select value={filterKelasUnjukDiri} onValueChange={setFilterKelasUnjukDiri}>
@@ -448,11 +575,9 @@ export default function GradingListPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                 {/* Gunakan list paginasi */}
                 <PenugasanList list={paginatedUnjukDiri} />
               </CardContent>
-               {/* Tambahkan footer paginasi */}
-              <PaginationFooter 
+               <PaginationFooter 
                 totalPages={totalPagesUnjukDiri}
                 currentPage={currentPageUnjukDiri}
                 setCurrentPage={setCurrentPageUnjukDiri}

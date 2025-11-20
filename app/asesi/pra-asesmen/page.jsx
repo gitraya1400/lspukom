@@ -61,7 +61,15 @@ export default function PraAsesmenPage() {
 
   const handleInputChange = (e) => {
     const { id, value } = e.target
-    setFormData(prev => ({ ...prev, [id]: value }))
+    let newValue = value;
+
+    // --- PERBAIKAN: Filter hanya angka untuk telepon ---
+    if (id === 'telepon') {
+      newValue = value.replace(/[^0-9]/g, '');
+    }
+    // --- Batas Perbaikan ---
+
+    setFormData(prev => ({ ...prev, [id]: newValue }))
   }
 
   // --- (PERUBAHAN 2: handleSubmit diubah untuk memicu konfirmasi) ---
@@ -186,7 +194,8 @@ export default function PraAsesmenPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="telepon">Nomor Telepon / WA</Label>
-                  <Input id="telepon" placeholder="08xxxxxxxxxx" value={formData.telepon} onChange={handleInputChange} required className="mt-1" />
+                  {/* PERBAIKAN: type="tel" dan inputMode="numeric" untuk filter angka */}
+                  <Input id="telepon" type="tel" inputMode="numeric" placeholder="08xxxxxxxxxx" value={formData.telepon} onChange={handleInputChange} required className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="tempatLahir">Tempat Lahir</Label>
