@@ -43,8 +43,10 @@ import {
   mockDeleteSoal,
   mockCreateTryout,
   mockUpsertPraktikum,
-  mockDeleteSkema 
-
+  mockDeleteSkema,
+  mockGetYearsForSkema,
+  mockAddYearToSkema,
+  mockDeleteYearFromSkema,
 } from "@/lib/api-mock";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,7 +91,8 @@ const SoalList = ({ soal, loading, onEdit, onDelete }) => {
 const SkemaContentManager = ({ 
   skemaId, 
   activeContentTab, 
-  setInfoDialog 
+  setInfoDialog,
+  activeTahunAjaran
 }) => {
   const [units, setUnits] = useState([]);
   const [selectedUnit, setSelectedUnit] = useState(null);
@@ -129,7 +132,7 @@ const SkemaContentManager = ({
 
   useEffect(() => {
     loadUnitsAndGlobalSoal();
-  }, [skemaId]); 
+  }, [skemaId, activeTahunAjaran]); 
 
   const loadUnitsAndGlobalSoal = async () => {
     try {
@@ -138,12 +141,12 @@ const SkemaContentManager = ({
       setSelectedUnit(null);
       setSoalTeori([]);
 
-      const unitsData = await mockGetUnitsForSkema(skemaId);
+      const unitsData = await mockGetUnitsForSkema(skemaId, activeTahunAjaran);
       setUnits(unitsData || []); 
 
       const [tryoutData, praktikumData] = await Promise.all([
-        mockGetSoalTryoutGabungan(skemaId), 
-        mockGetSoalPraktikumGabungan(skemaId), 
+        mockGetSoalTryoutGabungan(skemaId, activeTahunAjaran), 
+        mockGetSoalPraktikumGabungan(skemaId, activeTahunAjaran), 
       ]);
       setSoalTryout(tryoutData || []); 
       setSoalPraktikum(Array.isArray(praktikumData) ? praktikumData : (praktikumData ? [praktikumData] : [])); // Pastikan array
@@ -224,6 +227,19 @@ const SkemaContentManager = ({
   const handleSaveUnit = async (e) => {
     e.preventDefault(); 
     if (isSavingUnit) return;
+
+    // Client-side quick validation (menghindari duplicate sebelum panggil API)
+    const unitsInSameYear = units.filter(u => u.tahunAjaran === activeTahunAjaran);
+    const nomorToCheck = Number(unitForm.nomorUnit) || undefined;
+    if (!unitForm.id && nomorToCheck && unitsInSameYear.some(u => Number(u.nomorUnit) === nomorToCheck)) {
+      setInfoDialog({ open: true, title: "Validasi Gagal", message: `Unit nomor ${nomorToCheck} sudah ada pada tahun ${activeTahunAjaran}.` });
+      return;
+    }
+    if (!unitForm.id && unitForm.kodeUnit && unitsInSameYear.some(u => (u.kodeUnit || "").toLowerCase() === unitForm.kodeUnit.toLowerCase())) {
+      setInfoDialog({ open: true, title: "Validasi Gagal", message: `Kode Unit '${unitForm.kodeUnit}' sudah terdaftar pada tahun ${activeTahunAjaran}.` });
+      return;
+    }
+
     try {
       setIsSavingUnit(true);
       
@@ -233,16 +249,17 @@ const SkemaContentManager = ({
         judul: unitForm.judul,
         deskripsi: unitForm.deskripsi,
         durasiTeori: Number(unitForm.durasiTeori) || 15,
+        tahunAjaran: activeTahunAjaran, // <--- PENTING
       };
 
       if (unitForm.id) {
         const updated = await mockUpdateUnit(skemaId, unitForm.id, payload);
-        const fresh = await mockGetUnitsForSkema(skemaId);
+        const fresh = await mockGetUnitsForSkema(skemaId, activeTahunAjaran);
         setUnits(fresh || []);
         if (selectedUnit?.id === updated.id) setSelectedUnit(updated);
       } else {
         await mockCreateUnit(skemaId, payload);
-        const fresh = await mockGetUnitsForSkema(skemaId);
+        const fresh = await mockGetUnitsForSkema(skemaId, activeTahunAjaran);
         setUnits(fresh || []);
         const last = (fresh || []).slice(-1)[0];
         if (last) await selectUnit(last);
@@ -343,29 +360,39 @@ const SkemaContentManager = ({
      e.preventDefault(); 
      
      try {
+       // client validation: praktikum wajib file
+       if (soalForm.tipeSoal === "UJIAN_PRAKTIKUM") {
+         if (!soalForm.filePendukung || soalForm.filePendukung.length === 0) {
+           setInfoDialog({ open: true, title: "Validasi Gagal", message: "Silakan unggah minimal satu file pendukung untuk soal praktikum." });
+           return;
+         }
+       }
+
+       const payload = { ...soalForm, tahunAjaran: activeTahunAjaran }; // <--- PENTING
+
        if (soalForm.tipeSoal === "UJIAN_TEORI") {
          if (!selectedUnit) {
            setInfoDialog({ open: true, title: "Validasi Gagal", message: "Pilih unit dulu sebelum menambah soal teori." });
            return;
          }
          if (soalForm.id) {
-           await mockUpdateSoal(selectedUnit.id, soalForm.id, soalForm);
+           await mockUpdateSoal(selectedUnit.id, soalForm.id, payload);
          } else {
-           await mockCreateSoal(selectedUnit.id, { ...soalForm, tipeSoal: "UJIAN_TEORI" });
+           await mockCreateSoal(selectedUnit.id, { ...payload, tipeSoal: "UJIAN_TEORI" });
          }
          const teori = await mockGetSoalForUnit(selectedUnit.id, "UJIAN_TEORI");
          setSoalTeori(teori || []);
        } else if (soalForm.tipeSoal === "TRYOUT") {
          if (soalForm.id) {
-           await mockUpdateSoal(null, soalForm.id, soalForm);
+           await mockUpdateSoal(null, soalForm.id, payload);
          } else {
-           await mockCreateTryout(skemaId, soalForm);
+           await mockCreateTryout(skemaId, payload);
          }
-         const tryoutData = await mockGetSoalTryoutGabungan(skemaId);
+         const tryoutData = await mockGetSoalTryoutGabungan(skemaId, activeTahunAjaran);
          setSoalTryout(tryoutData || []);
        } else if (soalForm.tipeSoal === "UJIAN_PRAKTIKUM") {
-         await mockUpsertPraktikum(skemaId, soalForm);
-         const praktikumData = await mockGetSoalPraktikumGabungan(skemaId);
+         await mockUpsertPraktikum(skemaId, payload);
+         const praktikumData = await mockGetSoalPraktikumGabungan(skemaId, activeTahunAjaran);
          setSoalPraktikum(Array.isArray(praktikumData) ? praktikumData : (praktikumData ? [praktikumData] : []));
        }
 
@@ -483,7 +510,6 @@ const SkemaContentManager = ({
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
-                            {/* --- BATAS PERBAIKAN --- */}
                           </div>
                         </div>
                       ))}
@@ -612,11 +638,10 @@ const SkemaContentManager = ({
               </Button>
             </CardHeader>
             <CardContent>
-              {/* --- PERBAIKAN: Teruskan onDelete --- */}
               <SoalList 
                 soal={soalPraktikum} 
                 loading={loadingUnits} 
-                onEdit={(s) => handleOpenSoalModal("UJIAN_PRAKTIKUM", s)} 
+                onEdit={(s) => handleOpenSoalModal("UJIAN_PRAKTIKUM", s )} 
                 onDelete={handleDeleteSoal}
               />
             </CardContent>
@@ -923,7 +948,6 @@ export default function SchemaPage() {
   const [activeContentTab, setActiveContentTab] = useState("unit");
   const [loadingSkema, setLoadingSkema] = useState(true);
   const [isSavingSkema, setIsSavingSkema] = useState(false); 
-
   const [isSkemaDialogOpen, setIsSkemaDialogOpen] = useState(false);
   const [skemaForm, setSkemaForm] = useState({ id: "", judul: "", deskripsi: "" });
 
@@ -933,6 +957,11 @@ export default function SchemaPage() {
 
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [isDeletingSkema, setIsDeletingSkema] = useState(false);
+
+  const [activeTahunAjaran, setActiveTahunAjaran] = useState("");
+  const [tahunAjaranList, setTahunAjaranList] = useState([]);
+  const [isYearDialogOpen, setIsYearDialogOpen] = useState(false);
+  const [newYearForm, setNewYearForm] = useState({ tahun: "", duplicateFrom: "" });
 
   useEffect(() => {
     loadSkemaList();
@@ -955,17 +984,21 @@ export default function SchemaPage() {
 
   // --- PERUBAHAN: onSubmit handler ditambahkan (e) ---
   const handleSaveSkema = async (e) => {
-    e.preventDefault(); // Mencegah reload halaman
-    
-    // Validasi JS untuk 'required' sudah dihapus, ditangani HTML5
-    
+    e.preventDefault();
     try {
       setIsSavingSkema(true);
       const newSkema = await mockCreateSkema(skemaForm);
       
       await loadSkemaList(); 
       
-      setActiveSkemaTab(newSkema.id); 
+      setActiveSkemaTab(newSkema.id);
+      
+      // --- TAMBAHAN: Set tahun default biar langsung bisa input unit ---
+      if (newSkema.tahunAjaranList && newSkema.tahunAjaranList.length > 0) {
+         setActiveTahunAjaran(newSkema.tahunAjaranList[0]);
+      }
+      // ---------------------------------------------------------------
+
       setIsSkemaDialogOpen(false); 
       setSkemaForm({ id: "", judul: "", deskripsi: "" }); 
     } catch (error) {
@@ -1003,6 +1036,47 @@ export default function SchemaPage() {
     }
   };
 
+  // --- Load tahun ajaran saat skema aktif berubah ---
+  useEffect(() => {
+    if (activeSkemaTab) {
+      mockGetYearsForSkema(activeSkemaTab).then((list) => {
+        setTahunAjaranList(list);
+        setActiveTahunAjaran(list[0] || "");
+      });
+    }
+  }, [activeSkemaTab]);
+
+  // --- Handler tambah tahun ajaran ---
+  const handleAddTahun = async (e) => {
+    e.preventDefault();
+    try {
+      // kalau admin pilih "NONE" artinya kosong (tanpa duplikasi)
+      const duplicateFrom = newYearForm.duplicateFrom === "NONE" ? null : newYearForm.duplicateFrom || null;
+      await mockAddYearToSkema(
+        activeSkemaTab,
+        newYearForm.tahun,
+        duplicateFrom
+      );
+      const list = await mockGetYearsForSkema(activeSkemaTab);
+      setTahunAjaranList(list);
+      setActiveTahunAjaran(newYearForm.tahun);
+      setIsYearDialogOpen(false);
+      setNewYearForm({ tahun: "", duplicateFrom: "" });
+    } catch (err) {
+      setInfoDialog({ open: true, title: "Gagal", message: err.message });
+    }
+  };
+
+  // --- Handler hapus tahun ajaran ---
+  const handleDeleteTahun = async () => {
+    if (!activeTahunAjaran) return;
+    if (!window.confirm(`Hapus tahun ${activeTahunAjaran}? Semua data tahun ini akan dihapus.`)) return;
+    await mockDeleteYearFromSkema(activeSkemaTab, activeTahunAjaran);
+    const list = await mockGetYearsForSkema(activeSkemaTab);
+    setTahunAjaranList(list);
+    setActiveTahunAjaran(list[0] || "");
+  };
+
   return (
     <MainLayout>
       <div className="flex-1 p-6 space-y-6">
@@ -1018,7 +1092,6 @@ export default function SchemaPage() {
           </div>
         ) : (
           <Tabs value={activeSkemaTab} onValueChange={setActiveSkemaTab} className="w-full">
-            
             <Card>
               <CardContent className="pt-6 flex flex-col gap-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1039,9 +1112,8 @@ export default function SchemaPage() {
                       {isDeletingSkema ? <Spinner className="w-4 h-4 mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
                       Hapus Skema
                     </Button>
-
                     <Button onClick={() => {
-                      setSkemaForm({ id: "", judul: "", deskripsi: "" }); // Reset form
+                      setSkemaForm({ id: "", judul: "", deskripsi: "" });
                       setIsSkemaDialogOpen(true);
                     }}>
                       <Plus className="w-4 h-4 mr-2" />
@@ -1049,7 +1121,33 @@ export default function SchemaPage() {
                     </Button>
                   </div>
                 </div>
-                
+                {/* === FILTER TAHUN AJARAN === */}
+                {activeSkemaTab && (
+                  <div className="flex flex-col md:flex-row gap-4 items-end mt-2">
+                    <div className="w-full md:w-64 space-y-2">
+                      <Label>Tahun Ajaran Aktif</Label>
+                      <Select value={activeTahunAjaran} onValueChange={setActiveTahunAjaran}>
+                        <SelectTrigger className="bg-blue-50 border-blue-200 text-blue-900 font-medium">
+                          <SelectValue placeholder="Pilih Tahun" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tahunAjaranList.map(t => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setIsYearDialogOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" /> Tambah Tahun
+                      </Button>
+                      <Button variant="ghost" className="text-red-600" onClick={handleDeleteTahun} disabled={!activeTahunAjaran}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {/* === END FILTER TAHUN AJARAN === */}
                 <Tabs value={activeContentTab} onValueChange={setActiveContentTab} className="mt-2">
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="unit">Unit Kompetensi & Soal Teori</TabsTrigger>
@@ -1057,26 +1155,30 @@ export default function SchemaPage() {
                     <TabsTrigger value="praktikum">Bank Soal Praktikum</TabsTrigger>
                   </TabsList>
                 </Tabs>
-
               </CardContent>
             </Card>
-
-
+            {/* === PASS activeTahunAjaran KE CHILD === */}
             {skemaList.map((skema) => (
-              <TabsContent 
-                key={skema.id} 
-                value={skema.id} 
-                className="mt-0" 
+              <TabsContent
+                key={skema.id}
+                value={skema.id}
+                className="mt-0"
                 forceMount={activeSkemaTab === skema.id}
               >
-                <SkemaContentManager 
-                  skemaId={skema.id} 
-                  activeContentTab={activeContentTab} 
-                  setInfoDialog={setInfoDialog} 
-                />
+                {activeTahunAjaran ? (
+                  <SkemaContentManager
+                    skemaId={skema.id}
+                    activeContentTab={activeContentTab}
+                    setInfoDialog={setInfoDialog}
+                    activeTahunAjaran={activeTahunAjaran}
+                  />
+                ) : (
+                  <Card className="h-64 flex items-center justify-center border-dashed text-muted-foreground">
+                    Pilih Tahun Ajaran untuk mulai mengelola konten.
+                  </Card>
+                )}
               </TabsContent>
             ))}
-
             <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -1105,67 +1207,101 @@ export default function SchemaPage() {
             </AlertDialog>
           </Tabs>
         )}
-
       </div>
+      {/* --- Modal Skema (INI YANG HILANG) --- */}
+        <Dialog open={isSkemaDialogOpen} onOpenChange={setIsSkemaDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <form onSubmit={handleSaveSkema}>
+              <DialogHeader>
+                <DialogTitle>Tambah Skema Sertifikasi Baru</DialogTitle>
+                <DialogDescription>
+                  Buat skema baru. Tahun ajaran default (2024/2025) akan otomatis ditambahkan.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="skema-id">ID Skema (Singkatan) *</Label>
+                  <Input 
+                    id="skema-id" 
+                    placeholder="Contoh: KSK" 
+                    value={skemaForm.id}
+                    onChange={(e) => setSkemaForm({ ...skemaForm, id: e.target.value.toUpperCase().replace(/\s+/g, '_') })} 
+                    required 
+                  />
+                  <p className="text-xs text-muted-foreground">Harus unik, huruf kapital (contoh: ADS, DS).</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="skema-judul">Nama Lengkap Skema *</Label>
+                  <Input 
+                    id="skema-judul" 
+                    placeholder="Contoh: Komputasi Statistik" 
+                    value={skemaForm.judul}
+                    onChange={(e) => setSkemaForm({ ...skemaForm, judul: e.target.value })} 
+                    required 
+                  />
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="skema-deskripsi">Deskripsi (Opsional)</Label>
+                  <Textarea 
+                    id="skema-deskripsi" 
+                    placeholder="Jelaskan skema ini secara singkat..." 
+                    value={skemaForm.deskripsi}
+                    onChange={(e) => setSkemaForm({ ...skemaForm, deskripsi: e.target.value })} 
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsSkemaDialogOpen(false)} disabled={isSavingSkema}>
+                  Batal
+                </Button>
+                <Button type="submit" disabled={isSavingSkema}>
+                  {isSavingSkema ? <Spinner className="w-4 h-4 mr-2" /> : "Simpan Skema"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
-      {/* --- Modal Skema --- */}
-      <Dialog open={isSkemaDialogOpen} onOpenChange={setIsSkemaDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <form id="skema-form" onSubmit={handleSaveSkema}>
-            <DialogHeader>
-              <DialogTitle>Tambah Skema Sertifikasi Baru</DialogTitle>
-              <DialogDescription>
-                Buat skema baru. Anda dapat menambahkan unit kompetensi setelah skema dibuat.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <Label htmlFor="skema-id" className="text-sm font-medium text-gray-900">ID Skema (Singkatan) *</Label>
-                <Input 
-                  id="skema-id" 
-                  placeholder="Contoh: KSK" 
-                  value={skemaForm.id}
-                  onChange={(e) => setSkemaForm({ ...skemaForm, id: e.target.value.toUpperCase().replace(/\s+/g, '_') })} 
-                  className="mt-1 border-gray-300" 
-                  required 
-                />
-                <p className="text-xs text-gray-500 mt-1">Harus unik, huruf kapital, tanpa spasi (spasi akan diganti '_').</p>
-              </div>
-              <div>
-                <Label htmlFor="skema-judul" className="text-sm font-medium text-gray-900">Nama Lengkap Skema *</Label>
-                <Input 
-                  id="skema-judul" 
-                  placeholder="Contoh: Komputasi Statistik" 
-                  value={skemaForm.judul}
-                  onChange={(e) => setSkemaForm({ ...skemaForm, judul: e.target.value })} 
-                  className="mt-1 border-gray-300" 
-                  required 
-                />
-              </div>
-               <div>
-                <Label htmlFor="skema-deskripsi" className="text-sm font-medium text-gray-900">Deskripsi (Opsional)</Label>
-                <Textarea 
-                  id="skema-deskripsi" 
-                  placeholder="Jelaskan skema ini secara singkat..." 
-                  value={skemaForm.deskripsi}
-                  onChange={(e) => setSkemaForm({ ...skemaForm, deskripsi: e.target.value })} 
-                  rows={3} 
-                  className="mt-1 border-gray-300" 
-                />
-              </div>
+      <Dialog open={isYearDialogOpen} onOpenChange={setIsYearDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tambah Tahun Ajaran Baru</DialogTitle>
+            <DialogDescription>
+              Masukkan tahun ajaran baru (misal: 2025/2026). Anda dapat menduplikasi data dari tahun sebelumnya.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddTahun}>
+            <div className="py-4 space-y-2">
+              <Input
+                placeholder="Contoh: 2025/2026"
+                value={newYearForm.tahun}
+                onChange={e => setNewYearForm({ ...newYearForm, tahun: e.target.value })}
+                required
+              />
+              <Label className="text-sm">Duplikasi dari tahun ajaran (opsional):</Label>
+              <Select value={newYearForm.duplicateFrom} onValueChange={val => setNewYearForm({ ...newYearForm, duplicateFrom: val })}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Pilih tahun ajaran..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">Kosong (Tanpa Duplikasi)</SelectItem>
+                  {tahunAjaranList.map(tahun => (
+                    <SelectItem key={tahun} value={tahun}>{tahun}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsSkemaDialogOpen(false)} disabled={isSavingSkema}>
+              <Button type="button" variant="outline" onClick={() => setIsYearDialogOpen(false)}>
                 Batal
               </Button>
-              <Button type="submit" form="skema-form" disabled={isSavingSkema}>
-                {isSavingSkema ? <Spinner className="w-4 h-4 mr-2" /> : "Simpan Skema"}
+              <Button type="submit" disabled={!newYearForm.tahun}>
+                Simpan Tahun Ajaran
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-      
       {/* --- Dialog Notifikasi Sederhana --- */}
       <AlertDialog open={infoDialog.open} onOpenChange={() => setInfoDialog({ open: false, title: "", message: "" })}>
         <AlertDialogContent className="sm:max-w-md">

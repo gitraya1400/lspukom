@@ -73,6 +73,7 @@ const Unit = {
   materiCount: 3,    // number (dihitung backend)
   soalCount: 8,      // number (dihitung backend)
   durasiTeori: 20, // number (Durasi ujian teori unit ini, dalam MENIT)
+  tahunAjaran: "2024/2025", // tahun ajaran skema ini berlaku
   urutan: 1        // number
 }
 */
@@ -96,6 +97,7 @@ const Soal = {
   tipeSoal: "UJIAN_TEORI",  // "UJIAN_TEORI" | "TRYOUT"
   tipeJawaban: "ESAI",    // "ESAI" | "PILIHAN_GANDA"
   teks: "Jelaskan konsep utama dari Data Science?",
+  tahnAjaran: "2024/2025", // tahun ajaran skema ini berlaku
   urutan: 1,
   
   // Opsional, hanya untuk Pilihan Ganda
@@ -111,6 +113,7 @@ const SoalPraktikum = {
   skemaId: "ADS",
   tipeSoal: "UJIAN_PRAKTIKUM",
   tipeJawaban: "UPLOAD_FILE",
+  tahunAjaran: "2024/2025", // tahun ajaran skema ini berlaku
   judul: "Studi Kasus: Analisis Data Penjualan Ritel",
   teks: "Instruksi pengerjaan studi kasus...\n1. Lakukan...\n2. Buat...",
   filePendukung: [ // Array file yang bisa di-download asesi
