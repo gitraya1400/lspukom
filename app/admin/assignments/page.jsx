@@ -168,7 +168,7 @@ export default function AssignmentsPage() {
 
   const unitOptions = useMemo(() => {
     return units.map((u) => ({
-      value: u.nomorUnit,
+      value: String(u.nomorUnit),
       label: `Unit ${u.nomorUnit}: ${u.judul}`,
     }))
   }, [units])
@@ -853,10 +853,14 @@ if (totalAssignedAsesiCount > 0 && totalAssignedAsesiCount < asesiInClass.length
                           {/* --- PERBAIKAN DROPDOWN: Menambahkan ...dropdownProps --- */}
                           <SelectContent {...dropdownProps}>
                             {unitOptions.map((u) => (
-                              <SelectItem key={u.value} value={u.value}>
-                                {u.label}
-                              </SelectItem>
-                            ))}
+-  <SelectItem key={u.value} value={u.value}>
+-    {u.label}
+-  </SelectItem>
++  <SelectItem key={`${skemaId}-${u.value}`} value={u.value}>
++    {u.label}
++  </SelectItem>
+))}
+
                           </SelectContent>
                         </Select>
                         <Select value={selectedBulkUnitEnd} onValueChange={setSelectedBulkUnitEnd}>
@@ -866,10 +870,14 @@ if (totalAssignedAsesiCount > 0 && totalAssignedAsesiCount < asesiInClass.length
                           {/* --- PERBAIKAN DROPDOWN: Menambahkan ...dropdownProps --- */}
                           <SelectContent {...dropdownProps}>
                             {unitOptions.map((u) => (
-                              <SelectItem key={u.value} value={u.value}>
-                                {u.label}
-                              </SelectItem>
-                            ))}
+-  <SelectItem key={u.value} value={u.value}>
+-    {u.label}
+-  </SelectItem>
++  <SelectItem key={`${skemaId}-${u.value}`} value={u.value}>
++    {u.label}
++  </SelectItem>
+))}
+
                           </SelectContent>
                         </Select>
                         <Button

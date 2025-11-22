@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
 import { useAuth } from "@/lib/auth-context"
@@ -27,7 +27,6 @@ import { Search, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, User, Inf
 
 const ITEMS_PER_PAGE = 20 
 
-// Helper component (tidak berubah)
 const StatusBadge = ({ status }) => {
   const isKompeten = status === "KOMPETEN"
   return (
@@ -42,7 +41,6 @@ const StatusBadge = ({ status }) => {
   )
 }
 
-// Komponen Modal Detail Asesi (Tidak berubah)
 const AsesiDetailModal = ({ item, onClose }) => {
   if (!item) return null
 
@@ -61,13 +59,11 @@ const AsesiDetailModal = ({ item, onClose }) => {
           
           <div className="space-y-4 mt-4 max-h-[50vh] overflow-y-auto pr-4">
             
-            {/* Kelas & Skema */}
             <div>
               <p className="text-sm text-muted-foreground">Kelas & Skema</p>
               <p className="font-medium text-gray-900">{asesiData.kelas} / {hasilAkhir.skemaId}</p>
             </div>
 
-            {/* Status Akhir */}
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">Status Akhir</p>
               <StatusBadge status={hasilAkhir.statusAkhir} />
@@ -75,7 +71,6 @@ const AsesiDetailModal = ({ item, onClose }) => {
             
             <hr />
 
-            {/* Ujian Teori */}
             <div>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">Ujian Teori</p>
@@ -92,7 +87,7 @@ const AsesiDetailModal = ({ item, onClose }) => {
                         <span className="text-muted-foreground truncate pr-2" title={detail.unitJudul}>
                           Unit {detail.unitId}: {detail.unitJudul}
                         </span>
-                        <span className="font-medium text-gray-800 flex-shrink-0">{detail.asesorNama}</span>
+                        <span className="font-medium text-gray-800">{detail.asesorNama}</span>
                       </div>
                     ))
                   )}
@@ -100,7 +95,6 @@ const AsesiDetailModal = ({ item, onClose }) => {
               </div>
             </div>
 
-            {/* Ujian Praktikum */}
             <div>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">Ujian Praktikum</p>
@@ -111,7 +105,6 @@ const AsesiDetailModal = ({ item, onClose }) => {
               </p>
             </div>
             
-            {/* Unjuk Diri */}
             <div>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">Unjuk Diri</p>
@@ -138,7 +131,6 @@ export default function AdminResultsPage() {
 
   const [rekap, setRekap] = useState([]) 
   const [skemaList, setSkemaList] = useState([]) 
-  const [kelasList, setKelasList] = useState([])
   
   const [loading, setLoading] = useState(true)
   
@@ -151,7 +143,6 @@ export default function AdminResultsPage() {
   
   const [detailAsesi, setDetailAsesi] = useState(null) 
 
-  // Logic fetch data, filter, dan pagination (Tidak berubah)
   useEffect(() => {
     if (isAuthLoading) return
     if (!user) {
@@ -169,11 +160,6 @@ export default function AdminResultsPage() {
         setRekap(rekapData)
         setSkemaList(skemaData)
         
-        const kList = [...new Set(rekapData.map(r => r.asesiData.kelas))]
-          .filter(k => k && k !== 'N/A') 
-          .sort();
-        setKelasList(kList);
-        
       } catch (error) {
         console.error("Error loading admin results:", error)
       } finally {
@@ -183,6 +169,37 @@ export default function AdminResultsPage() {
     
     loadData()
   }, [user, isAuthLoading, router])
+
+  // ========================================================================
+  // LOGIKA BARU: Kelas List Dinamis Berdasarkan Skema (seperti assignments)
+  // ========================================================================
+  const kelasList = useMemo(() => {
+    // Filter rekap berdasarkan skema yang dipilih
+    const filteredBySkema = filterSkema === "SEMUA" 
+      ? rekap 
+      : rekap.filter(r => r.hasilAkhir.skemaId === filterSkema);
+    
+    // Ambil semua kelas unik dari hasil filter
+    const kList = [...new Set(filteredBySkema.map(r => r.asesiData.kelas))]
+      .filter(k => k && k !== 'N/A') 
+      .sort();
+    
+    return kList;
+  }, [rekap, filterSkema]); // Dependency: rekap dan filterSkema
+  
+  // ========================================================================
+  // LOGIKA BARU: Auto-reset Filter Kelas Ketika Skema Berubah
+  // ========================================================================
+  useEffect(() => {
+    // Reset filter kelas ke "SEMUA" setiap kali filterSkema berubah
+    setFilterKelas("SEMUA");
+    setCurrentPage(1); // Reset halaman juga
+  }, [filterSkema]);
+  
+  // Reset halaman saat filter lain berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterKelas, searchTerm, filterStatus]);
 
   const filteredRekap = useMemo(() => {
     return rekap.filter(item => {
@@ -209,8 +226,6 @@ export default function AdminResultsPage() {
     return filteredRekap.slice(start, end)
   }, [filteredRekap, currentPage])
 
-  // --- Render ---
-
   if (loading || isAuthLoading) {
     return (
       <MainLayout>
@@ -224,28 +239,27 @@ export default function AdminResultsPage() {
 
   return (
     <MainLayout>
-      {/* --- PERUBAHAN 1: 'max-w-7xl mx-auto' dihapus agar layout penuh --- */}
       <div className="flex-1 p-6 space-y-6">
-        {/* Header (Tidak Berubah) */}
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Rekapitulasi Hasil</h1>
           <p className="text-gray-600 mt-1">Lihat hasil akhir penilaian semua asesi.</p>
         </div>
 
-        {/* --- PERUBAHAN 2: Layout Filter diubah dari Grid ke Flex --- */}
+        {/* Filter Card - Mengikuti Pattern admin/assignments */}
         <Card>
-          <CardContent className="pt-6">
-            {/* Ganti 'grid' menjadi 'flex' dan atur item-end */}
+          <CardContent className="pt-6 space-y-4">
+            
+            {/* Baris Filter */}
             <div className="flex flex-col md:flex-row gap-4 md:items-end">
               
-              {/* Filter Skema (diberi lebar tetap) */}
+              {/* Kolom 1: Filter Skema (Lebar tetap) */}
               <div className="md:w-64">
                 <Label htmlFor="filter-skema">Filter Skema</Label>
                 <Select value={filterSkema} onValueChange={setFilterSkema}>
-                  <SelectTrigger id="filter-skema" className="mt-1 h-10">
+                  <SelectTrigger id="filter-skema" className="mt-1.5 h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     <SelectItem value="SEMUA">Semua Skema</SelectItem>
                     {skemaList.map(s => (
                       <SelectItem key={s.id} value={s.id}>{s.judul} ({s.id})</SelectItem>
@@ -254,14 +268,14 @@ export default function AdminResultsPage() {
                 </Select>
               </div>
               
-              {/* Filter Kelas (diberi lebar tetap) */}
+              {/* Kolom 2: Filter Kelas (Lebar tetap) - DINAMIS BERDASARKAN SKEMA */}
               <div className="md:w-48">
                 <Label htmlFor="filter-kelas">Filter Kelas</Label>
                 <Select value={filterKelas} onValueChange={setFilterKelas}>
-                  <SelectTrigger id="filter-kelas" className="mt-1 h-10">
+                  <SelectTrigger id="filter-kelas" className="mt-1.5 h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     <SelectItem value="SEMUA">Semua Kelas</SelectItem>
                     {kelasList.map(k => (
                       <SelectItem key={k} value={k}>{k}</SelectItem>
@@ -270,14 +284,14 @@ export default function AdminResultsPage() {
                 </Select>
               </div>
               
-              {/* Filter Status (diberi lebar tetap) */}
+              {/* Kolom 3: Filter Status (Lebar tetap) */}
               <div className="md:w-56"> 
                 <Label htmlFor="filter-status">Filter Status Akhir</Label>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger id="filter-status" className="mt-1 h-10">
+                  <SelectTrigger id="filter-status" className="mt-1.5 h-10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     <SelectItem value="SEMUA">Semua Status</SelectItem>
                     <SelectItem value="KOMPETEN">Kompeten</SelectItem>
                     <SelectItem value="BELUM KOMPETEN">Belum Kompeten</SelectItem>
@@ -285,10 +299,10 @@ export default function AdminResultsPage() {
                 </Select>
               </div>
 
-              {/* Search Asesi (diberi flex-1 agar memenuhi sisa ruang) */}
+              {/* Kolom 4: Search Asesi (Fleksibel - memenuhi sisa ruang) */}
               <div className="flex-1 w-full"> 
                 <Label htmlFor="search-asesi">Cari Asesi</Label>
-                <div className="relative mt-1">
+                <div className="relative mt-1.5">
                   <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
                   <Input 
                     id="search-asesi"
@@ -300,13 +314,10 @@ export default function AdminResultsPage() {
                 </div>
               </div>
             </div>
-            {/* --- BATAS PERUBAHAN 2 --- */}
           </CardContent>
         </Card>
 
-        {/* ========================================================== */}
-        {/* --- (TABEL UTAMA) --- */}
-        {/* ========================================================== */}
+        {/* Tabel Hasil */}
         <Card>
           <CardHeader>
             <CardTitle>Daftar Hasil Asesi</CardTitle>
@@ -321,7 +332,6 @@ export default function AdminResultsPage() {
               <Table>
                 <TableHeader className="bg-gray-50">
                   <TableRow>
-                    {/* (Sesuaikan lebar kolom) */}
                     <TableHead className="w-[25%]">Nama Asesi</TableHead>
                     <TableHead className="w-[10%]">Kelas</TableHead>
                     <TableHead className="w-[10%]">Skema</TableHead>
@@ -329,68 +339,58 @@ export default function AdminResultsPage() {
                     <TableHead className="w-[15%]">Praktikum</TableHead>
                     <TableHead className="w-[15%]">Unjuk Diri</TableHead>
                     <TableHead className="w-[10%]">Status Akhir</TableHead>
-                    {/* (Kolom Aksi BARU) */}
                     <TableHead className="w-[10%] text-center">Info</TableHead> 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedRekap.length === 0 ? (
                     <TableRow>
-                      {/* (colSpan diubah jadi 8) */}
                       <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
                         Tidak ada data yang cocok dengan filter.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedRekap.map(item => {
-                      const asesorTeoriUtama = item.hasilAkhir.asesorTeoriDetail[0]?.asesorNama || 'N/A';
-                      const sisaAsesorTeori = item.hasilAkhir.asesorTeoriDetail.length - 1;
-                      
-                      return (
-                        <TableRow key={item.asesiData.id} className="hover:bg-gray-50">
-                          <TableCell>
-                            {/* (Nama kembali jadi Teks) */}
-                            <p className="font-medium text-gray-900">{item.asesiData.nama}</p>
-                            <p className="text-sm text-gray-500">{item.asesiData.nim}</p>
-                          </TableCell>
-                          <TableCell>{item.asesiData.kelas}</TableCell>
-                          <TableCell>{item.hasilAkhir.skemaId}</TableCell>
-                          
-                          <TableCell className="text-center">
-                            <StatusBadge status={item.hasilAkhir.hasilTeori.statusAkumulasi} />
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <StatusBadge status={item.hasilAkhir.hasilPraktikum} />
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <StatusBadge status={item.hasilAkhir.hasilUnjukDiri} />
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={item.hasilAkhir.statusAkhir} />
-                          </TableCell>
-                          
-                          {/* (Kolom Aksi BARU) */}
-                          <TableCell className="text-center">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              title="Lihat Detail Hasil"
-                              onClick={() => setDetailAsesi(item)}
-                            >
-                              <Info className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
+                    paginatedRekap.map(item => (
+                      <TableRow key={item.asesiData.id} className="hover:bg-gray-50">
+                        <TableCell>
+                          <p className="font-medium text-gray-900">{item.asesiData.nama}</p>
+                          <p className="text-sm text-gray-500">{item.asesiData.nim}</p>
+                        </TableCell>
+                        <TableCell>{item.asesiData.kelas}</TableCell>
+                        <TableCell>{item.hasilAkhir.skemaId}</TableCell>
+                        
+                        <TableCell className="text-center">
+                          <StatusBadge status={item.hasilAkhir.hasilTeori.statusAkumulasi} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <StatusBadge status={item.hasilAkhir.hasilPraktikum} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <StatusBadge status={item.hasilAkhir.hasilUnjukDiri} />
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={item.hasilAkhir.statusAkhir} />
+                        </TableCell>
+                        
+                        <TableCell className="text-center">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            title="Lihat Detail Hasil"
+                            onClick={() => setDetailAsesi(item)}
+                          >
+                            <Info className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>
             </div>
           </CardContent>
           
-          {/* Pagination Footer (Tidak Berubah) */}
           {totalPages > 1 && (
             <CardFooter className="flex items-center justify-between pt-4 border-t">
               <span className="text-sm text-muted-foreground">
@@ -421,7 +421,6 @@ export default function AdminResultsPage() {
         </Card>
       </div>
       
-      {/* Modal (Sekarang dengan Rincian Teori) */}
       <AsesiDetailModal 
         item={detailAsesi} 
         onClose={() => setDetailAsesi(null)} 
