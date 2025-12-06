@@ -1,9 +1,20 @@
+/**
+ * Halaman Plotting Peserta Ujian Offline (Admin)
+ * * Halaman ini digunakan untuk mengatur (plot) peserta ke dalam sesi ujian spesifik.
+ * Fitur utama:
+ * 1. Menampilkan detail sesi (Ruangan, Waktu, Kapasitas).
+ * 2. Menampilkan daftar asesi yang BELUM di-plot (dikelompokkan per kelas).
+ * 3. Menampilkan daftar asesi yang SUDAH di-plot di sesi ini.
+ * 4. Memindahkan asesi antar dua daftar tersebut (Plot/Unplot) dengan validasi kapasitas ruangan.
+ * 5. Fitur "Pilih Cepat" untuk mengisi sisa kursi kosong secara otomatis.
+ */
+
 "use client"
 
 import React, { useEffect, useState, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { MainLayout } from "@/components/layout/main-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -11,11 +22,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible" 
 import { mockGetSesiUjianDetail, mockGetAsesiBelumDiplot, mockUpdatePlottingSesi } from "@/lib/api-mock"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Search, Users, UserPlus, ArrowLeft, Save, AlertCircle, Trash2, ChevronRight, Check } from "lucide-react"
+import { Search, Users, UserPlus, ArrowLeft, Save, AlertCircle, Trash2, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { Spinner } from "@/components/ui/spinner"
 import { Label } from "@/components/ui/label"
-// --- (PERUBAHAN 1: Impor AlertDialog) ---
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,28 +35,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-// --- (Batas Perubahan 1) ---
 
 export default function PlottingPage() {
   const params = useParams()
   const router = useRouter()
   const sesiId = params.sesiId
 
+  // --- State Data ---
   const [sesi, setSesi] = useState(null)
-  const [availableGrup, setAvailableGrup] = useState([]) 
-  const [plottedAsesi, setPlottedAsesi] = useState([]) 
+  const [availableGrup, setAvailableGrup] = useState([]) // Daftar asesi tersedia (belum di-plot), dikelompokkan per kelas
+  const [plottedAsesi, setPlottedAsesi] = useState([])   // Daftar asesi yang sudah masuk sesi ini
   
+  // --- State Seleksi (Checkbox) ---
   const [selectedAvailable, setSelectedAvailable] = useState(new Set())
   const [selectedPlotted, setSelectedPlotted] = useState(new Set())
   
+  // --- State UI ---
   const [loading, setLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-
-  // --- (PERUBAHAN 2: State untuk dialog notifikasi) ---
   const [infoDialog, setInfoDialog] = useState({ open: false, title: "", message: "" });
-  // --- (Batas Perubahan 2) ---
 
+  // Muat data saat sesiId tersedia
   useEffect(() => {
     if (sesiId) {
       loadData()
@@ -56,64 +66,78 @@ export default function PlottingPage() {
   const loadData = async () => {
     try {
       setLoading(true)
+      // Ambil detail sesi (termasuk peserta yang sudah ada)
       const sesiData = await mockGetSesiUjianDetail(sesiId)
       setSesi(sesiData)
       setPlottedAsesi(sesiData.asesiTerplot || [])
       
+      // Ambil daftar asesi yang available (belum punya sesi)
       const availableDataGrup = await mockGetAsesiBelumDiplot(sesiData.skemaId, sesiId)
       setAvailableGrup(availableDataGrup)
       
     } catch (error) {
-      console.error("Error loading plotting data:", error)
-      // --- (PERUBAHAN 3: Ganti alert) ---
+      console.error("Gagal memuat data plotting:", error)
       setInfoDialog({ open: true, title: "Error", message: "Gagal memuat data sesi." })
-      // --- (Batas Perubahan 3) ---
     } finally {
       setLoading(false)
     }
   }
   
+  // Hitung kapasitas tersisa
   const sisaKapasitas = sesi ? sesi.kapasitas - plottedAsesi.length : 0
   const kapasitasPenuh = sisaKapasitas <= 0
 
-  
+  // Hitung sisa slot REAL (dikurangi yang sedang dicentang di kolom kiri)
+  // Digunakan untuk validasi tombol "Pilih Cepat" agar tidak over-quota
+  const sisaSlotReal = sisaKapasitas - selectedAvailable.size;
+
+  /**
+   * Memindahkan SATU GRUP KELAS penuh ke daftar Plotted.
+   * Validasi kapasitas dilakukan sebelum memindahkan.
+   */
   const plotGrup = (asesiGrup) => {
     if (asesiGrup.length > sisaKapasitas) {
-      // --- (PERUBAHAN 4: Ganti alert) ---
       setInfoDialog({ open: true, title: "Kapasitas Penuh", message: `Kapasitas tidak cukup! Kelas ini berisi ${asesiGrup.length} asesi, tapi sisa kapasitas hanya ${sisaKapasitas}.` })
-      // --- (Batas Perubahan 4) ---
       return
     }
     setAvailableGrup(prev => prev.filter(g => g.namaKelas !== asesiGrup[0].kelas))
     setPlottedAsesi(prev => [...prev, ...asesiGrup])
   }
 
+  /**
+   * Memindahkan asesi yang DICENTANG (Selected) dari Available ke Plotted.
+   */
   const plotSelected = () => {
     const toPlot = availableGrup.flatMap(g => g.asesi).filter(a => selectedAvailable.has(a.id))
     
     if (toPlot.length > sisaKapasitas) {
-      // --- (PERUBAHAN 5: Ganti alert) ---
       setInfoDialog({ open: true, title: "Kapasitas Penuh", message: `Kapasitas tidak cukup! Anda mencoba memasukkan ${toPlot.length} asesi, tapi sisa kapasitas hanya ${sisaKapasitas}.` })
-      // --- (Batas Perubahan 5) ---
       return
     }
     
+    // Hapus dari Available
     setAvailableGrup(prev => 
       prev.map(grup => ({
         ...grup,
         asesi: grup.asesi.filter(a => !selectedAvailable.has(a.id))
-      })).filter(grup => grup.asesi.length > 0) 
+      })).filter(grup => grup.asesi.length > 0) // Hapus grup jika jadi kosong
     )
     
+    // Tambah ke Plotted
     setPlottedAsesi(prev => [...prev, ...toPlot])
-    setSelectedAvailable(new Set())
+    setSelectedAvailable(new Set()) // Reset seleksi
   }
   
+  /**
+   * Mengeluarkan asesi yang DICENTANG dari Plotted kembali ke Available.
+   */
   const unplotSelected = () => {
     const toUnplot = plottedAsesi.filter(a => selectedPlotted.has(a.id))
     
+    // Hapus dari Plotted
     setPlottedAsesi(prev => prev.filter(a => !selectedPlotted.has(a.id)))
     
+    // Kembalikan ke Available (dimasukkan kembali ke grup kelas masing-masing)
     setAvailableGrup(prev => {
       const newGrup = [...prev]
       toUnplot.forEach(asesi => {
@@ -127,8 +151,10 @@ export default function PlottingPage() {
       })
       return newGrup
     })
-    setSelectedPlotted(new Set())
+    setSelectedPlotted(new Set()) // Reset seleksi
   }
+
+  // --- Handlers Checkbox ---
 
   const handleSelectAvailable = (id, checked) => {
     setSelectedAvailable(prev => {
@@ -148,17 +174,15 @@ export default function PlottingPage() {
     })
   }
   
-  // ==========================================================
-  // --- FUNGSI BARU UNTUK PILIH CEPAT (REVISI) ---
-  // ==========================================================
+  /**
+   * Fitur "Pilih Cepat":
+   * Otomatis memilih asesi dalam satu grup sebanyak sisa slot yang tersedia.
+   * Berguna jika satu kelas tidak muat semua, tapi ingin memaksimalkan kapasitas ruangan.
+   */
   const handleSelectSisaKapasitas = (grup) => {
-    // 1. Hitung sisa slot yang SEBENARNYA (total sisa - yang sudah dipilih)
-    const sisaSlotSebenarnya = sisaKapasitas - selectedAvailable.size;
-
-    if (sisaSlotSebenarnya <= 0) {
-      // --- (PERUBAHAN 6: Ganti alert) ---
+    // 1. Cek sisa slot real
+    if (sisaSlotReal <= 0) {
       setInfoDialog({ open: true, title: "Kapasitas Penuh", message: "Kapasitas sudah penuh atau terisi oleh asesi terpilih dari grup lain." });
-      // --- (Batas Perubahan 6) ---
       return; 
     }
 
@@ -167,17 +191,15 @@ export default function PlottingPage() {
       .filter(a => !selectedAvailable.has(a.id))
       .map(a => a.id);
     
-    // 3. Ambil hanya sebanyak sisa slot yang sebenarnya
-    const idUntukDipilih = asesiBelumTerpilihDiGrupIni.slice(0, sisaSlotSebenarnya);
+    // 3. Ambil hanya sebanyak sisa slot
+    const idUntukDipilih = asesiBelumTerpilihDiGrupIni.slice(0, sisaSlotReal);
 
     if (idUntukDipilih.length === 0) {
-      // --- (PERUBAHAN 7: Ganti alert) ---
       setInfoDialog({ open: true, title: "Informasi", message: "Semua asesi di grup ini sudah terpilih atau sisa kapasitas sudah dipenuhi oleh grup lain." });
-      // --- (Batas Perubahan 7) ---
       return;
     }
 
-    // 4. Tambahkan ID tersebut ke state 'selectedAvailable'
+    // 4. Update state seleksi
     setSelectedAvailable(prev => {
       const next = new Set(prev);
       idUntukDipilih.forEach(id => next.add(id));
@@ -185,7 +207,7 @@ export default function PlottingPage() {
     });
   }
 
-  // --- FUNGSI BARU UNTUK PILIH SEMUA DI GRUP ---
+  // Helper untuk memilih semua asesi dalam satu grup
   const handleSelectAllInGroup = (grup, checked) => {
     setSelectedAvailable(prev => {
       const next = new Set(prev);
@@ -197,35 +219,28 @@ export default function PlottingPage() {
       return next;
     });
   }
-  // ==========================================================
-  // --- BATAS FUNGSI BARU ---
-  // ==========================================================
-
 
   const handleSavePlotting = async () => {
     setIsSaving(true)
     try {
       const asesiIds = plottedAsesi.map(a => a.id)
       await mockUpdatePlottingSesi(sesiId, asesiIds)
-      // --- (PERUBAHAN 8: Ganti alert dengan dialog + logic redirect) ---
+      
       setInfoDialog({ 
         open: true, 
         title: "Sukses", 
         message: "Plotting berhasil disimpan!",
-        // Tambahkan onConfirm untuk redirect setelah dialog ditutup
         onConfirm: () => router.push("/admin/timeline") 
       });
-      // --- (Batas Perubahan 8) ---
     } catch (error) {
-      console.error("Error saving plotting:", error)
-      // --- (PERUBAHAN 9: Ganti alert) ---
+      console.error("Gagal menyimpan plotting:", error)
       setInfoDialog({ open: true, title: "Gagal Menyimpan", message: `Gagal menyimpan: ${error.message}` })
-      // --- (Batas Perubahan 9) ---
     } finally {
       setIsSaving(false)
     }
   }
 
+  // Filter grup berdasarkan pencarian nama/NIM
   const filteredAvailableGrup = useMemo(() => {
     if (!searchTerm) return availableGrup
     
@@ -242,13 +257,6 @@ export default function PlottingPage() {
   }, [availableGrup, searchTerm])
   
   const totalAsesiAvailable = filteredAvailableGrup.reduce((sum, grup) => sum + grup.asesi.length, 0)
-  
-  // ==========================================================
-  // --- VARIABEL BARU UNTUK TOMBOL "PILIH CEPAT" ---
-  // ==========================================================
-  // Ini adalah sisa slot SEBENARNYA, dikurangi yang sudah dipilih di daftar kiri
-  const sisaSlotReal = sisaKapasitas - selectedAvailable.size;
-  // ==========================================================
 
   if (loading || !sesi) {
     return (
@@ -264,7 +272,7 @@ export default function PlottingPage() {
   return (
     <MainLayout>
       <div className="flex-1 p-6 space-y-6 max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header Navigasi */}
         <div>
            <Button variant="outline" size="sm" asChild className="mb-2">
              <Link href="/admin/timeline">
@@ -278,7 +286,7 @@ export default function PlottingPage() {
           </p>
         </div>
 
-        {/* Info Kapasitas */}
+        {/* Indikator Kapasitas Ruangan */}
         <Card>
             <CardContent className="pt-6">
                 <div className="flex justify-between items-center">
@@ -299,10 +307,9 @@ export default function PlottingPage() {
             </CardContent>
         </Card>
 
-        {/* 2 Kolom Plotting */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          {/* Kolom Kiri: Asesi Tersedia (Pake Collapsible) */}
+          {/* Kolom Kiri: Asesi Tersedia */}
           <Card>
             <CardHeader>
               <CardTitle>Asesi Tersedia (Skema {sesi.skemaId})</CardTitle>
@@ -317,9 +324,7 @@ export default function PlottingPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2 pr-2">
-              {/* --- (PERUBAHAN 10: Tambah gap-2) --- */}
               <div className="flex items-center justify-between gap-2 p-3 border-b">
-              {/* --- (Batas Perubahan 10) --- */}
                 <div className="flex items-center gap-3">
                   <span className="font-medium text-sm">Total Tersedia: {totalAsesiAvailable}</span>
                 </div>
@@ -338,13 +343,10 @@ export default function PlottingPage() {
                 {filteredAvailableGrup.length === 0 && <p className="text-sm text-gray-500 text-center py-4">Tidak ada asesi tersedia.</p>}
                 
                 {filteredAvailableGrup.map(grup => {
-                  // ==========================================================
-                  // --- LOGIKA BARU UNTUK CHECKBOX "PILIH SEMUA" ---
-                  // ==========================================================
+                  // Logika Checkbox "Pilih Semua" di level Grup
                   const allInGroupSelected = grup.asesi.length > 0 && grup.asesi.every(a => selectedAvailable.has(a.id));
                   const someInGroupSelected = grup.asesi.some(a => selectedAvailable.has(a.id));
                   const checkboxState = allInGroupSelected ? "checked" : (someInGroupSelected ? "indeterminate" : "unchecked");
-                  // ==========================================================
                   
                   return (
                     <Collapsible key={grup.namaKelas} className="border rounded-lg">
@@ -369,15 +371,13 @@ export default function PlottingPage() {
                         </div>
                         <CollapsibleContent className="p-2 space-y-2">
                             
-                            {/* ========================================================== */}
-                            {/* --- BLOK KONTROL BARU DI DALAM COLLAPSIBLE --- */}
-                            {/* ========================================================== */}
+                            {/* Kontrol Grup: Pilih Semua & Pilih Cepat */}
                             <div className="flex items-center justify-between gap-4 p-2 border-b">
                               <div className="flex items-center gap-2">
                                 <Checkbox 
                                   id={`select-all-${grup.namaKelas}`}
                                   checked={checkboxState === "checked"}
-                                  data-state={checkboxState} // Untuk menampilkan status indeterminate (-)
+                                  data-state={checkboxState} 
                                   onCheckedChange={(checked) => handleSelectAllInGroup(grup, checked)}
                                 />
                                 <Label htmlFor={`select-all-${grup.namaKelas}`} className="text-sm font-medium">
@@ -388,18 +388,14 @@ export default function PlottingPage() {
                                 variant="outline" 
                                 size="sm" 
                                 className="h-8 text-blue-600 border-blue-300 hover:bg-blue-50"
-                                // Tombol mati jika sisa slot 0
                                 disabled={sisaSlotReal <= 0}
                                 onClick={() => handleSelectSisaKapasitas(grup)}
                               >
-                                {/* Tampilkan sisa slot yang sebenarnya */}
                                 Pilih Cepat (Sisa {sisaSlotReal})
                               </Button>
                             </div>
-                            {/* ========================================================== */}
-                            {/* --- BATAS BLOK KONTROL BARU --- */}
-                            {/* ========================================================== */}
 
+                            {/* Daftar Asesi per Grup */}
                             {grup.asesi.map(asesi => (
                               <div key={asesi.id} className="flex items-center gap-3 p-2 border rounded-md">
                                 <Checkbox 
@@ -421,16 +417,14 @@ export default function PlottingPage() {
             </CardContent>
           </Card>
 
-          {/* Kolom Kanan: Peserta Sesi Ini (Pake Checkbox) */}
+          {/* Kolom Kanan: Peserta Sesi Ini (Sudah Di-plot) */}
           <Card>
             <CardHeader>
               <CardTitle>Peserta Sesi Ini ({plottedAsesi.length})</CardTitle>
               <CardDescription>Daftar asesi yang akan mengikuti sesi di ruangan ini.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 pr-2">
-               {/* --- (PERUBAHAN 11: Tambah gap-2) --- */}
                <div className="flex items-center justify-between gap-2 p-3 border-b">
-               {/* --- (Batas Perubahan 11) --- */}
                 <div className="flex items-center gap-3">
                   <Checkbox 
                     id="select-all-plotted"
@@ -476,7 +470,6 @@ export default function PlottingPage() {
           </Card>
         </div>
         
-        {/* Tombol Simpan */}
         <div className="flex justify-end">
             <Button size="lg" onClick={handleSavePlotting} disabled={isSaving}>
                 {isSaving ? <Spinner className="w-4 h-4 mr-2" /> : <Save className="w-4 h-4 mr-2" />}
@@ -486,7 +479,7 @@ export default function PlottingPage() {
 
       </div>
 
-      {/* --- (PERUBAHAN 12: Tambahkan Dialog Notifikasi) --- */}
+      {/* Dialog Notifikasi & Konfirmasi */}
       <AlertDialog open={infoDialog.open} onOpenChange={() => setInfoDialog({ open: false, title: "", message: "" })}>
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
@@ -497,7 +490,6 @@ export default function PlottingPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => {
-              // Jalankan fungsi onConfirm (untuk redirect) jika ada
               if (typeof infoDialog.onConfirm === 'function') {
                 infoDialog.onConfirm();
               }
@@ -508,7 +500,6 @@ export default function PlottingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* --- (Batas Perubahan 12) --- */}
 
     </MainLayout>
   )

@@ -1,14 +1,24 @@
+/**
+ * Test Suite untuk Halaman Manajemen Pengguna (Admin)
+ *
+ * Pengujian ini memastikan:
+ * 1. Halaman berhasil di-render dan menampilkan data pengguna (Asesi, Asesor, dll).
+ * 2. Fungsi pencarian dan filter dasar bekerja (via simulasi render).
+ * 3. Interaksi tombol "Ubah Role" membuka dialog yang sesuai.
+ */
+
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import UsersPage from './page'
 import { useAuth } from '@/lib/auth-context'
 import * as apiMock from '@/lib/api-mock'
 
+// Mocking Layout Utama
 vi.mock('@/components/layout/main-layout', () => ({
   MainLayout: ({ children }) => <div>{children}</div>,
 }))
 
-// FIX: Mock Table dengan spread props
+// Mocking Table Component
 vi.mock('@/components/ui/table', () => ({
   Table: (props) => <table {...props} />,
   TableHeader: (props) => <thead {...props} />,
@@ -18,7 +28,7 @@ vi.mock('@/components/ui/table', () => ({
   TableCell: (props) => <td {...props} />,
 }))
 
-// FIX: Mock Dialog
+// Mocking Dialog Component
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ children, open }) => open ? <div>{children}</div> : null,
   DialogContent: (props) => <div {...props} />,
@@ -29,12 +39,13 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogTrigger: ({ children, onClick }) => <button onClick={onClick}>{children}</button>,
 }))
 
+// Mocking Next.js Navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/admin/users',
 }))
 
-// FIX: Mock Tabs sederhana
+// Mocking Tabs
 vi.mock('@/components/ui/tabs', () => ({
   Tabs: (props) => <div {...props} />,
   TabsList: (props) => <div {...props} />,
@@ -44,6 +55,7 @@ vi.mock('@/components/ui/tabs', () => ({
   TabsContent: (props) => <div {...props} />,
 }))
 
+// Mocking Auth & API
 vi.mock('@/lib/auth-context', () => ({ useAuth: vi.fn() }))
 vi.mock('@/lib/api-mock', () => ({
   mockGetAllUsers: vi.fn(),
@@ -55,8 +67,10 @@ vi.mock('@/lib/api-mock', () => ({
 
 describe('Halaman Manajemen User (Admin)', () => {
   beforeEach(() => {
+    // Simulasi user admin login
     vi.mocked(useAuth).mockReturnValue({ user: { role: 'ADMIN_LSP' }, loading: false })
     
+    // Simulasi data user
     const mockAsesi = { id: 'u1', nama: 'Asesi Budi', role: 'ASESI', email: 'budi@stis.ac.id', kelas: '3SD1' }
     const mockAsesor = { id: 'u2', nama: 'Asesor Siti', role: 'ASESOR', email: 'siti@stis.ac.id' }
     
@@ -68,6 +82,8 @@ describe('Halaman Manajemen User (Admin)', () => {
 
   it('harus me-render judul dan tabel user dengan benar', async () => {
     render(<UsersPage />)
+    
+    // Verifikasi data muncul
     const rows = await screen.findAllByText(/Asesi Budi/i)
     expect(rows.length).toBeGreaterThan(0)
   })
@@ -75,21 +91,17 @@ describe('Halaman Manajemen User (Admin)', () => {
   it('harus membuka dialog edit saat tombol Ubah Role diklik', async () => {
     render(<UsersPage />)
     
-    // 1. Tunggu data Asesor muncul di layar
+    // Tunggu data Asesor muncul
     const asesorName = await screen.findByText('Asesor Siti')
     
-    // 2. Cari baris (row) tabel yang mengandung 'Asesor Siti'
-    // Ini memastikan kita mengklik tombol milik Asesor, bukan Asesi
+    // Cari tombol Ubah Role pada baris tersebut
     const row = asesorName.closest('tr')
-    expect(row).toBeInTheDocument()
-    
-    // 3. Cari tombol "Ubah Role" spesifik di dalam baris tersebut
     const editBtn = within(row).getByText(/Ubah Role/i)
     
-    // 4. Klik tombol
+    // Klik tombol
     fireEvent.click(editBtn)
 
-    // 5. Assert Dialog terbuka
+    // Verifikasi dialog terbuka
     await waitFor(() => {
       expect(screen.getByText(/Ubah Role Pengguna/i)).toBeInTheDocument()
     })

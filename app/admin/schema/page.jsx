@@ -1,3 +1,18 @@
+/**
+ * Halaman Manajemen Skema & Konten (Admin)
+ *
+ * Halaman ini berfungsi sebagai pusat kontrol untuk:
+ * 1. Manajemen Skema Sertifikasi (CRUD Skema & Tahun Ajaran).
+ * 2. Manajemen Unit Kompetensi per Skema.
+ * 3. Manajemen Materi Pembelajaran (Video, PDF, Link) per Unit.
+ * 4. Manajemen Bank Soal (Teori, Tryout, Praktikum).
+ *
+ * Struktur:
+ * - SchemaPage (Parent): Mengelola tab Skema dan Tahun Ajaran aktif.
+ * - SkemaContentManager (Child): Mengelola konten (Unit/Soal/Materi) berdasarkan skema & tahun yang dipilih.
+ * - SoalList (Component): Menampilkan daftar soal dengan aksi edit/hapus.
+ */
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -31,7 +46,6 @@ import {
   mockCreateSkema,
   mockGetSoalTryoutGabungan,
   mockGetSoalPraktikumGabungan,
-  
   mockCreateUnit,
   mockUpdateUnit,
   mockDeleteUnit,
@@ -53,9 +67,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Edit2, Trash2, BookOpen, FileText, File, UploadCloud, X } from "lucide-react"; 
 import { Spinner } from "@/components/ui/spinner";
 
-// ===============================================================
-// --- KOMPONEN 'SoalList' (DENGAN TOMBOL HAPUS) ---
-// ===============================================================
+/**
+ * Komponen Daftar Soal
+ * Menampilkan list soal dengan opsi edit dan hapus.
+ */
 const SoalList = ({ soal, loading, onEdit, onDelete }) => {
   if (loading) return <Skeleton className="h-20 w-full" />;
   if (soal.length === 0) return <AlertDescription>Belum ada soal.</AlertDescription>;
@@ -66,7 +81,6 @@ const SoalList = ({ soal, loading, onEdit, onDelete }) => {
         <div key={s.id} className="p-3 border rounded-lg">
           <div className="flex items-center justify-between">
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${s.tipeSoal === "TRYOUT" ? "bg-yellow-100 text-yellow-800" : "bg-indigo-100 text-indigo-800"}`}>{s.tipeSoal}</span>
-            {/* --- PERBAIKAN TOMBOL HAPUS --- */}
             <div className="flex items-center">
               <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-blue-600" onClick={() => onEdit(s)}>
                 <Edit2 className="w-4 h-4" />
@@ -75,7 +89,6 @@ const SoalList = ({ soal, loading, onEdit, onDelete }) => {
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
-            {/* --- BATAS PERBAIKAN --- */}
           </div>
           <p className="font-medium text-sm my-2">{s.teks}</p>
           <span className="text-xs text-gray-500">Tipe Jawaban: {s.tipeJawaban}</span>
@@ -85,51 +98,49 @@ const SoalList = ({ soal, loading, onEdit, onDelete }) => {
   );
 };
 
-// ===============================================================
-// --- KOMPONEN UNTUK KONTEN SKEMA (DIREFAKTOR) ---
-// ===============================================================
+/**
+ * Komponen Manajer Konten Skema
+ * Mengelola Unit, Materi, dan Soal untuk Skema dan Tahun Ajaran tertentu.
+ */
 const SkemaContentManager = ({ 
   skemaId, 
   activeContentTab, 
   setInfoDialog,
   activeTahunAjaran
 }) => {
+  // State Data
   const [units, setUnits] = useState([]);
   const [selectedUnit, setSelectedUnit] = useState(null);
-
   const [soalTeori, setSoalTeori] = useState([]);
   const [soalTryout, setSoalTryout] = useState([]);
   const [soalPraktikum, setSoalPraktikum] = useState([]);
   const [materi, setMateri] = useState([]);
   
+  // State Loading & Proses
   const [loadingUnits, setLoadingUnits] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
-
   const [isSavingUnit, setIsSavingUnit] = useState(false);
 
+  // State Dialog Form
   const [isUnitDialogOpen, setIsUnitDialogOpen] = useState(false);
   const [isMateriDialogOpen, setIsMateriDialogOpen] = useState(false);
   const [isSoalDialogOpen, setIsSoalDialogOpen] = useState(false);
 
+  // State Dialog Hapus (Target Object untuk menampilkan nama di popup)
   const [deleteUnitTarget, setDeleteUnitTarget] = useState(null);
   const [deleteMateriTarget, setDeleteMateriTarget] = useState(null);
   const [deleteSoalTarget, setDeleteSoalTarget] = useState(null);
 
+  // State Form Input
   const [unitForm, setUnitForm] = useState({ id: null, nomorUnit: "", kodeUnit: "", judul: "", deskripsi: "", durasiTeori: 15 });
-  const [materiForm, setMateriForm] = useState({
-    id: null,
-    judul: "",
-    jenis: "VIDEO", 
-    urlKonten: "",
-    file: null
-  });
-  
+  const [materiForm, setMateriForm] = useState({ id: null, judul: "", jenis: "VIDEO", urlKonten: "", file: null });
   const [soalForm, setSoalForm] = useState({
     id: null, teks: "", tipeSoal: "UJIAN_TEORI", tipeJawaban: "ESAI",
     pilihan: ["", "", "", ""], kunciJawaban: "",
     filePendukung: [], 
   });
 
+  // Load data awal saat Skema atau Tahun berubah
   useEffect(() => {
     loadUnitsAndGlobalSoal();
   }, [skemaId, activeTahunAjaran]); 
@@ -141,22 +152,26 @@ const SkemaContentManager = ({
       setSelectedUnit(null);
       setSoalTeori([]);
 
+      // Ambil Unit Kompetensi
       const unitsData = await mockGetUnitsForSkema(skemaId, activeTahunAjaran);
       setUnits(unitsData || []); 
 
+      // Ambil Bank Soal Global (Tryout & Praktikum)
       const [tryoutData, praktikumData] = await Promise.all([
         mockGetSoalTryoutGabungan(skemaId, activeTahunAjaran), 
         mockGetSoalPraktikumGabungan(skemaId, activeTahunAjaran), 
       ]);
       setSoalTryout(tryoutData || []); 
-      setSoalPraktikum(Array.isArray(praktikumData) ? praktikumData : (praktikumData ? [praktikumData] : [])); // Pastikan array
+      setSoalPraktikum(Array.isArray(praktikumData) ? praktikumData : (praktikumData ? [praktikumData] : []));
+      
+      // Auto-select unit pertama jika ada
       if (unitsData && unitsData.length > 0) {
         await selectUnit(unitsData[0]);
       } else {
         setLoadingContent(false); 
       }
     } catch (error) {
-      console.error("[v0] Error loading units:", error);
+      console.error("Error loading units:", error);
     } finally {
       setLoadingUnits(false);
     }
@@ -175,11 +190,13 @@ const SkemaContentManager = ({
       setMateri(materiData || []);
       setSoalTeori(soalTeoriData || []);
     } catch (error) {
-      console.error("[v0] Error loading unit content:", error);
+      console.error("Error loading unit content:", error);
     } finally {
       setLoadingContent(false);
     }
   };
+
+  // --- Handlers Form Soal ---
 
   const handleOpenSoalModal = (tipeSoalDefault, soalData = null) => {
     if (soalData) {
@@ -224,11 +241,13 @@ const SkemaContentManager = ({
       }));
   };
 
+  // --- Handlers CRUD Unit ---
+
   const handleSaveUnit = async (e) => {
     e.preventDefault(); 
     if (isSavingUnit) return;
 
-    // Client-side quick validation (menghindari duplicate sebelum panggil API)
+    // Validasi duplikasi nomor/kode unit dalam tahun yang sama
     const unitsInSameYear = units.filter(u => u.tahunAjaran === activeTahunAjaran);
     const nomorToCheck = Number(unitForm.nomorUnit) || undefined;
     if (!unitForm.id && nomorToCheck && unitsInSameYear.some(u => Number(u.nomorUnit) === nomorToCheck)) {
@@ -249,7 +268,7 @@ const SkemaContentManager = ({
         judul: unitForm.judul,
         deskripsi: unitForm.deskripsi,
         durasiTeori: Number(unitForm.durasiTeori) || 15,
-        tahunAjaran: activeTahunAjaran, // <--- PENTING
+        tahunAjaran: activeTahunAjaran,
       };
 
       if (unitForm.id) {
@@ -299,6 +318,8 @@ const SkemaContentManager = ({
       setDeleteUnitTarget(null);
     }
   };
+
+  // --- Handlers CRUD Materi ---
 
   const handleSaveMateri = async (e) => {
     e.preventDefault(); 
@@ -356,11 +377,13 @@ const SkemaContentManager = ({
     }
   };
 
+  // --- Handlers CRUD Soal ---
+
   const handleSaveSoal = async (e) => {
      e.preventDefault(); 
      
      try {
-       // client validation: praktikum wajib file
+       // Validasi khusus Praktikum
        if (soalForm.tipeSoal === "UJIAN_PRAKTIKUM") {
          if (!soalForm.filePendukung || soalForm.filePendukung.length === 0) {
            setInfoDialog({ open: true, title: "Validasi Gagal", message: "Silakan unggah minimal satu file pendukung untuk soal praktikum." });
@@ -368,7 +391,7 @@ const SkemaContentManager = ({
          }
        }
 
-       const payload = { ...soalForm, tahunAjaran: activeTahunAjaran }; // <--- PENTING
+       const payload = { ...soalForm, tahunAjaran: activeTahunAjaran };
 
        if (soalForm.tipeSoal === "UJIAN_TEORI") {
          if (!selectedUnit) {
@@ -386,7 +409,7 @@ const SkemaContentManager = ({
          if (soalForm.id) {
            await mockUpdateSoal(null, soalForm.id, payload);
          } else {
-           await mockCreateTryout(skemaId, payload);
+           await mockCreateTryout(skemaId, payload, activeTahunAjaran);
          }
          const tryoutData = await mockGetSoalTryoutGabungan(skemaId, activeTahunAjaran);
          setSoalTryout(tryoutData || []);
@@ -469,6 +492,7 @@ const SkemaContentManager = ({
   return (
     <React.Fragment> 
       <Tabs value={activeContentTab} className="w-full">
+        {/* Tab Unit & Materi */}
         <TabsContent value="unit" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 space-y-4">
@@ -476,7 +500,7 @@ const SkemaContentManager = ({
                 <CardHeader className="flex flex-row items-center justify-between pb-4">
                   <CardTitle className="text-lg">Unit Kompetensi</CardTitle>
                   <Button size="sm" onClick={() => {
-                    setUnitForm({ id: null, nomorUnit: "", kodeUnit: "", judul: "", deskripsi: "", durasiTeori: 15 }); // Reset form
+                    setUnitForm({ id: null, nomorUnit: "", kodeUnit: "", judul: "", deskripsi: "", durasiTeori: 15 });
                     setIsUnitDialogOpen(true);
                   }}>
                     <Plus className="w-4 h-4 mr-2" /> Tambah Unit
@@ -501,7 +525,6 @@ const SkemaContentManager = ({
                             <span className="font-medium text-sm text-gray-800">
                               {unit.nomorUnit}. {unit.judul}
                             </span>
-                            {/* --- PERBAIKAN TOMBOL HAPUS --- */}
                             <div className="flex items-center -mr-2">
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-blue-600" onClick={(e) => { e.stopPropagation(); setUnitForm(unit); setIsUnitDialogOpen(true); }}>
                                 <Edit2 className="w-4 h-4" />
@@ -539,7 +562,7 @@ const SkemaContentManager = ({
                       <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle className="text-lg">Daftar Materi</CardTitle>
                         <Button size="sm" onClick={() => {
-                          setMateriForm({ id: null, judul: "", jenis: "VIDEO", urlKonten: "", file: null }); // Reset form
+                          setMateriForm({ id: null, judul: "", jenis: "VIDEO", urlKonten: "", file: null });
                           setIsMateriDialogOpen(true);
                         }}>
                           <Plus className="w-4 h-4 mr-2" /> Tambah Materi
@@ -556,7 +579,6 @@ const SkemaContentManager = ({
                                   <p className="text-xs text-muted-foreground">{m.urlKonten}</p>
                                 </div>
                               </div>
-                              {/* --- PERBAIKAN TOMBOL HAPUS --- */}
                               <div className="flex items-center -mr-2">
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-500 hover:text-blue-600" onClick={() => { setMateriForm(m); setIsMateriDialogOpen(true); }}>
                                   <Edit2 className="w-4 h-4" />
@@ -565,7 +587,6 @@ const SkemaContentManager = ({
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
-                              {/* --- BATAS PERBAIKAN --- */}
                             </div>
                           ))
                         )}
@@ -581,7 +602,6 @@ const SkemaContentManager = ({
                         </Button>
                       </CardHeader>
                       <CardContent>
-                        {/* --- PERBAIKAN: Teruskan onDelete --- */}
                         <SoalList 
                           soal={soalTeori} 
                           loading={loadingContent} 
@@ -597,7 +617,7 @@ const SkemaContentManager = ({
                       <CardContent className="text-center text-gray-500">
                         <p>Skema ini belum memiliki unit.</p>
                         <Button size="sm" className="mt-4" onClick={() => {
-                          setUnitForm({ id: null, nomorUnit: "", kodeUnit: "", judul: "", deskripsi: "", durasiTeori: 15 }); // Reset form
+                          setUnitForm({ id: null, nomorUnit: "", kodeUnit: "", judul: "", deskripsi: "", durasiTeori: 15 });
                           setIsUnitDialogOpen(true);
                         }}>
                           <Plus className="w-4 h-4 mr-2" /> Tambah Unit Pertama
@@ -609,6 +629,7 @@ const SkemaContentManager = ({
           </div>
         </TabsContent>
 
+        {/* Tab Tryout */}
         <TabsContent value="tryout" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -618,7 +639,6 @@ const SkemaContentManager = ({
               </Button>
             </CardHeader>
             <CardContent>
-              {/* --- PERBAIKAN: Teruskan onDelete --- */}
               <SoalList 
                 soal={soalTryout} 
                 loading={loadingUnits} 
@@ -629,6 +649,7 @@ const SkemaContentManager = ({
           </Card>
         </TabsContent>
 
+        {/* Tab Praktikum */}
         <TabsContent value="praktikum" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -754,7 +775,7 @@ const SkemaContentManager = ({
                         <p className="text-xs text-muted-foreground">{materiForm.file.size}</p>
                       </div>
                       <Button 
-                        type="button" // Pastikan type="button" agar tidak submit form
+                        type="button"
                         size="icon" 
                         variant="ghost" 
                         onClick={() => setMateriForm(prev => ({ ...prev, file: null, urlKonten: "" }))}
@@ -871,65 +892,50 @@ const SkemaContentManager = ({
         </DialogContent>
       </Dialog>
       
-      {/* --- Dialog Konfirmasi Hapus Unit --- */}
+      {/* --- Dialog Hapus Unit --- */}
       <AlertDialog open={!!deleteUnitTarget} onOpenChange={() => setDeleteUnitTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Unit Kompetensi?</AlertDialogTitle>
             <AlertDialogDescription>
-              Apakah Anda yakin ingin menghapus unit "{deleteUnitTarget?.judul}"? Tindakan ini akan menghapus semua materi dan soal di dalamnya. Aksi ini tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus unit &quot;{deleteUnitTarget?.judul}&quot;? Tindakan ini akan menghapus semua materi dan soal di dalamnya. Aksi ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteUnit}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Hapus
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmDeleteUnit} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* --- Dialog Konfirmasi Hapus Materi --- */}
+      {/* --- Dialog Hapus Materi --- */}
       <AlertDialog open={!!deleteMateriTarget} onOpenChange={() => setDeleteMateriTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Materi?</AlertDialogTitle>
             <AlertDialogDescription>
-              Apakah Anda yakin ingin menghapus materi "{deleteMateriTarget?.judul}"? Aksi ini tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus materi &quot;{deleteMateriTarget?.judul}&quot;? Aksi ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteMateri}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Hapus
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmDeleteMateri} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* --- Dialog Konfirmasi Hapus Soal --- */}
+      {/* --- Dialog Hapus Soal --- */}
       <AlertDialog open={!!deleteSoalTarget} onOpenChange={() => setDeleteSoalTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Soal?</AlertDialogTitle>
             <AlertDialogDescription>
-              Apakah Anda yakin ingin menghapus soal "{deleteSoalTarget?.teks.substring(0, 50)}..."? Aksi ini tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus soal &quot;{deleteSoalTarget?.teks?.substring(0, 50)}{deleteSoalTarget?.teks?.length > 50 ? "..." : ""}&quot;? Aksi ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteSoal}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Hapus
-            </AlertDialogAction>
+            <AlertDialogAction onClick={confirmDeleteSoal} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -939,9 +945,9 @@ const SkemaContentManager = ({
 };
 
 
-// ===============================================================
-// --- KOMPONEN UTAMA PAGE (YANG DI-REFACTOR) ---
-// ===============================================================
+/**
+ * Halaman Utama Manajemen Skema
+ */
 export default function SchemaPage() {
   const [skemaList, setSkemaList] = useState([]); 
   const [activeSkemaTab, setActiveSkemaTab] = useState(""); 
@@ -951,10 +957,7 @@ export default function SchemaPage() {
   const [isSkemaDialogOpen, setIsSkemaDialogOpen] = useState(false);
   const [skemaForm, setSkemaForm] = useState({ id: "", judul: "", deskripsi: "" });
 
-  // --- PERUBAHAN: State untuk dialog notifikasi & error ---
   const [infoDialog, setInfoDialog] = useState({ open: false, title: "", message: "" });
-  // --- BATAS PERUBAHAN ---
-
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [isDeletingSkema, setIsDeletingSkema] = useState(false);
 
@@ -976,33 +979,29 @@ export default function SchemaPage() {
         setActiveSkemaTab(data[0].id); 
       }
     } catch (error) {
-      console.error("[v0] Error loading skema list:", error);
+      console.error("Error loading skema list:", error);
     } finally {
       setLoadingSkema(false);
     }
   };
 
-  // --- PERUBAHAN: onSubmit handler ditambahkan (e) ---
   const handleSaveSkema = async (e) => {
     e.preventDefault();
     try {
       setIsSavingSkema(true);
       const newSkema = await mockCreateSkema(skemaForm);
-      
       await loadSkemaList(); 
-      
       setActiveSkemaTab(newSkema.id);
       
-      // --- TAMBAHAN: Set tahun default biar langsung bisa input unit ---
+      // Set tahun default otomatis
       if (newSkema.tahunAjaranList && newSkema.tahunAjaranList.length > 0) {
          setActiveTahunAjaran(newSkema.tahunAjaranList[0]);
       }
-      // ---------------------------------------------------------------
 
       setIsSkemaDialogOpen(false); 
       setSkemaForm({ id: "", judul: "", deskripsi: "" }); 
     } catch (error) {
-      console.error("[v0] Error creating skema:", error);
+      console.error("Error creating skema:", error);
       setInfoDialog({ open: true, title: "Gagal Menyimpan", message: `Gagal menyimpan skema: ${error.message}` });
     } finally {
       setIsSavingSkema(false);
@@ -1011,32 +1010,29 @@ export default function SchemaPage() {
 
   const handleDeleteSkema = async () => {
     if (!activeSkemaTab) return;
-    
     try {
       setIsDeletingSkema(true);
       await mockDeleteSkema(activeSkemaTab);
-      
-      // Refresh skema list
       await loadSkemaList();
-      // --- PERUBAHAN: Reset tab aktif ---
-      const data = await mockGetAllSkema(); // Panggil lagi
+      
+      // Reset tab
+      const data = await mockGetAllSkema(); 
       setSkemaList(data);
       if (data.length > 0) {
-        setActiveSkemaTab(data[0].id); // Atur ke skema pertama yang tersisa
+        setActiveSkemaTab(data[0].id);
       } else {
-        setActiveSkemaTab(""); // Kosongkan jika tidak ada skema tersisa
+        setActiveSkemaTab("");
       }
-      // --- BATAS PERUBAHAN ---
       setIsDeleteAlertOpen(false);
     } catch (error) {
-      console.error("[v0] Error deleting skema:", error);
+      console.error("Error deleting skema:", error);
       setInfoDialog({ open: true, title: "Gagal Menghapus", message: `Gagal menghapus skema: ${error.message}` });
     } finally {
       setIsDeletingSkema(false);
     }
   };
 
-  // --- Load tahun ajaran saat skema aktif berubah ---
+  // Load tahun ajaran saat skema aktif berubah
   useEffect(() => {
     if (activeSkemaTab) {
       mockGetYearsForSkema(activeSkemaTab).then((list) => {
@@ -1046,11 +1042,9 @@ export default function SchemaPage() {
     }
   }, [activeSkemaTab]);
 
-  // --- Handler tambah tahun ajaran ---
   const handleAddTahun = async (e) => {
     e.preventDefault();
     try {
-      // kalau admin pilih "NONE" artinya kosong (tanpa duplikasi)
       const duplicateFrom = newYearForm.duplicateFrom === "NONE" ? null : newYearForm.duplicateFrom || null;
       await mockAddYearToSkema(
         activeSkemaTab,
@@ -1067,7 +1061,6 @@ export default function SchemaPage() {
     }
   };
 
-  // --- Handler hapus tahun ajaran ---
   const handleDeleteTahun = async () => {
     if (!activeTahunAjaran) return;
     if (!window.confirm(`Hapus tahun ${activeTahunAjaran}? Semua data tahun ini akan dihapus.`)) return;
@@ -1094,6 +1087,7 @@ export default function SchemaPage() {
           <Tabs value={activeSkemaTab} onValueChange={setActiveSkemaTab} className="w-full">
             <Card>
               <CardContent className="pt-6 flex flex-col gap-4">
+                {/* Header Skema & Aksi */}
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <TabsList>
                     {skemaList.map((skema) => (
@@ -1121,7 +1115,8 @@ export default function SchemaPage() {
                     </Button>
                   </div>
                 </div>
-                {/* === FILTER TAHUN AJARAN === */}
+
+                {/* Filter Tahun Ajaran */}
                 {activeSkemaTab && (
                   <div className="flex flex-col md:flex-row gap-4 items-end mt-2">
                     <div className="w-full md:w-64 space-y-2">
@@ -1147,7 +1142,8 @@ export default function SchemaPage() {
                     </div>
                   </div>
                 )}
-                {/* === END FILTER TAHUN AJARAN === */}
+
+                {/* Tab Konten (Unit/Tryout/Praktikum) */}
                 <Tabs value={activeContentTab} onValueChange={setActiveContentTab} className="mt-2">
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="unit">Unit Kompetensi & Soal Teori</TabsTrigger>
@@ -1157,7 +1153,8 @@ export default function SchemaPage() {
                 </Tabs>
               </CardContent>
             </Card>
-            {/* === PASS activeTahunAjaran KE CHILD === */}
+
+            {/* Konten Skema Dinamis */}
             {skemaList.map((skema) => (
               <TabsContent
                 key={skema.id}
@@ -1179,6 +1176,8 @@ export default function SchemaPage() {
                 )}
               </TabsContent>
             ))}
+
+            {/* Dialog Hapus Skema */}
             <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -1195,11 +1194,7 @@ export default function SchemaPage() {
                     disabled={isDeletingSkema}
                     className="bg-red-600 hover:bg-red-700"
                   >
-                    {isDeletingSkema ? (
-                      <Spinner className="w-4 h-4 mr-2" />
-                    ) : (
-                      <Trash2 className="w-4 h-4 mr-2" />
-                    )}
+                    {isDeletingSkema ? <Spinner className="w-4 h-4 mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
                     Hapus Permanen
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -1208,60 +1203,62 @@ export default function SchemaPage() {
           </Tabs>
         )}
       </div>
-      {/* --- Modal Skema (INI YANG HILANG) --- */}
-        <Dialog open={isSkemaDialogOpen} onOpenChange={setIsSkemaDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <form onSubmit={handleSaveSkema}>
-              <DialogHeader>
-                <DialogTitle>Tambah Skema Sertifikasi Baru</DialogTitle>
-                <DialogDescription>
-                  Buat skema baru. Tahun ajaran default (2024/2025) akan otomatis ditambahkan.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="skema-id">ID Skema (Singkatan) *</Label>
-                  <Input 
-                    id="skema-id" 
-                    placeholder="Contoh: KSK" 
-                    value={skemaForm.id}
-                    onChange={(e) => setSkemaForm({ ...skemaForm, id: e.target.value.toUpperCase().replace(/\s+/g, '_') })} 
-                    required 
-                  />
-                  <p className="text-xs text-muted-foreground">Harus unik, huruf kapital (contoh: ADS, DS).</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="skema-judul">Nama Lengkap Skema *</Label>
-                  <Input 
-                    id="skema-judul" 
-                    placeholder="Contoh: Komputasi Statistik" 
-                    value={skemaForm.judul}
-                    onChange={(e) => setSkemaForm({ ...skemaForm, judul: e.target.value })} 
-                    required 
-                  />
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="skema-deskripsi">Deskripsi (Opsional)</Label>
-                  <Textarea 
-                    id="skema-deskripsi" 
-                    placeholder="Jelaskan skema ini secara singkat..." 
-                    value={skemaForm.deskripsi}
-                    onChange={(e) => setSkemaForm({ ...skemaForm, deskripsi: e.target.value })} 
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsSkemaDialogOpen(false)} disabled={isSavingSkema}>
-                  Batal
-                </Button>
-                <Button type="submit" disabled={isSavingSkema}>
-                  {isSavingSkema ? <Spinner className="w-4 h-4 mr-2" /> : "Simpan Skema"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
 
+      {/* Modal Tambah Skema */}
+      <Dialog open={isSkemaDialogOpen} onOpenChange={setIsSkemaDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleSaveSkema}>
+            <DialogHeader>
+              <DialogTitle>Tambah Skema Sertifikasi Baru</DialogTitle>
+              <DialogDescription>
+                Buat skema baru. Tahun ajaran default (2024/2025) akan otomatis ditambahkan.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="skema-id">ID Skema (Singkatan) *</Label>
+                <Input 
+                  id="skema-id" 
+                  placeholder="Contoh: KSK" 
+                  value={skemaForm.id}
+                  onChange={(e) => setSkemaForm({ ...skemaForm, id: e.target.value.toUpperCase().replace(/\s+/g, '_') })} 
+                  required 
+                />
+                <p className="text-xs text-muted-foreground">Harus unik, huruf kapital (contoh: ADS, DS).</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="skema-judul">Nama Lengkap Skema *</Label>
+                <Input 
+                  id="skema-judul" 
+                  placeholder="Contoh: Komputasi Statistik" 
+                  value={skemaForm.judul}
+                  onChange={(e) => setSkemaForm({ ...skemaForm, judul: e.target.value })} 
+                  required 
+                />
+              </div>
+                <div className="space-y-2">
+                <Label htmlFor="skema-deskripsi">Deskripsi (Opsional)</Label>
+                <Textarea 
+                  id="skema-deskripsi" 
+                  placeholder="Jelaskan skema ini secara singkat..." 
+                  value={skemaForm.deskripsi}
+                  onChange={(e) => setSkemaForm({ ...skemaForm, deskripsi: e.target.value })} 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsSkemaDialogOpen(false)} disabled={isSavingSkema}>
+                Batal
+              </Button>
+              <Button type="submit" disabled={isSavingSkema}>
+                {isSavingSkema ? <Spinner className="w-4 h-4 mr-2" /> : "Simpan Skema"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Tambah Tahun Ajaran */}
       <Dialog open={isYearDialogOpen} onOpenChange={setIsYearDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1302,7 +1299,8 @@ export default function SchemaPage() {
           </form>
         </DialogContent>
       </Dialog>
-      {/* --- Dialog Notifikasi Sederhana --- */}
+
+      {/* Dialog Info/Error */}
       <AlertDialog open={infoDialog.open} onOpenChange={() => setInfoDialog({ open: false, title: "", message: "" })}>
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>

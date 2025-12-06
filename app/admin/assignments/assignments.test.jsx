@@ -1,28 +1,39 @@
+/**
+ * Test Suite untuk Halaman Penugasan Asesor (Admin)
+ * * Cakupan Pengujian:
+ * 1. Memastikan halaman berhasil di-render tanpa error.
+ * 2. Memastikan data asesi berhasil diambil dan ditampilkan.
+ * 3. Memastikan elemen UI utama (judul, filter) tersedia.
+ * * Strategi Mocking:
+ * - Mock MainLayout untuk menghindari render sidebar yang kompleks.
+ * - Mock UI components (AlertDialog) untuk menyederhanakan DOM tree.
+ * - Mock API calls untuk simulasi data backend.
+ */
+
 import { render, screen, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import AssignmentsPage from './page'
 import { useAuth } from '@/lib/auth-context'
 import * as apiMock from '@/lib/api-mock'
 
-// --- 1. MOCKING KOMPONEN UI & LAYOUT (SOLUSI UTAMA) ---
-// Kita ganti MainLayout dengan div biasa agar Sidebar tidak ikut dirender
+// Mocking komponen UI untuk mengisolasi pengujian halaman
 vi.mock('@/components/layout/main-layout', () => ({
   MainLayout: ({ children }) => <div data-testid="main-layout">{children}</div>,
 }))
 
-// Kita ganti AlertDialog agar Title-nya tidak dianggap sebagai Heading yang bentrok
+// Mock komponen AlertDialog untuk mencegah error accessibility pada headless DOM
 vi.mock('@/components/ui/alert-dialog', () => ({
   AlertDialog: ({ children }) => <div>{children}</div>,
   AlertDialogContent: ({ children }) => <div>{children}</div>,
   AlertDialogHeader: ({ children }) => <div>{children}</div>,
-  AlertDialogTitle: ({ children }) => <div data-testid="dialog-title">{children}</div>, // Jadi div biasa
+  AlertDialogTitle: ({ children }) => <div data-testid="dialog-title">{children}</div>, 
   AlertDialogDescription: ({ children }) => <div>{children}</div>,
   AlertDialogFooter: ({ children }) => <div>{children}</div>,
   AlertDialogAction: ({ onClick, children }) => <button onClick={onClick}>{children}</button>,
   AlertDialogCancel: ({ onClick, children }) => <button onClick={onClick}>{children}</button>,
 }))
 
-// --- 2. MOCK NAVIGATION ---
+// Mock Next.js Navigation
 vi.mock('next/navigation', async (importOriginal) => {
   const actual = await importOriginal()
   return {
@@ -36,7 +47,7 @@ vi.mock('next/navigation', async (importOriginal) => {
   }
 })
 
-// --- 3. MOCK AUTH & API ---
+// Mock Modul Auth dan API
 vi.mock('@/lib/auth-context', () => ({
   useAuth: vi.fn(),
 }))
@@ -49,16 +60,15 @@ vi.mock('@/lib/api-mock', () => ({
   mockAssignAsesorPerUnit: vi.fn(),
 }))
 
-// --- 4. TEST SUITE ---
 describe('Halaman Penugasan Asesor', () => {
   beforeEach(() => {
-    // Setup User Admin yang sedang login
+    // Simulasi User Admin yang sedang login
     vi.mocked(useAuth).mockReturnValue({
       user: { role: 'ADMIN_LSP', nama: 'Admin Test' },
       loading: false
     })
 
-    // Setup Data Dummy API
+    // Simulasi Data Dummy API
     vi.mocked(apiMock.mockGetAllSkema).mockResolvedValue([
       { id: 'ADS', judul: 'Associate Data Scientist' }
     ])
@@ -69,19 +79,16 @@ describe('Halaman Penugasan Asesor', () => {
     vi.mocked(apiMock.mockGetUnitsForSkema).mockResolvedValue([])
   })
 
-  it('harus merender halaman dan menampilkan data asesi', async () => {
+  it('seharusnya merender halaman dan menampilkan data asesi dengan benar', async () => {
     render(<AssignmentsPage />)
 
-    // Tunggu sampai data asesi muncul (tanda loading selesai)
+    // Tunggu hingga data asesi muncul di layar (menandakan loading selesai)
     await waitFor(() => {
       expect(screen.getByText('Asesi Alpha')).toBeInTheDocument()
     })
 
-    // Cek judul halaman utama
-    // Karena AlertDialog sudah di-mock jadi div, hanya ada SATU heading sekarang (judul halaman)
+    // Verifikasi keberadaan elemen UI penting
     expect(screen.getByRole('heading', { name: 'Penugasan Asesor' })).toBeInTheDocument()
-    
-    // Cek apakah filter tersedia
     expect(screen.getByText('Filter Kelas')).toBeInTheDocument()
   })
 })

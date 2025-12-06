@@ -4,11 +4,23 @@ import { useEffect, useState } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
 import { useAuth } from "@/lib/auth-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { CheckCircle2, AlertCircle, FileText, Download, NotebookText, Mic, Brain } from "lucide-react"
+import { 
+  CheckCircle2, 
+  AlertCircle, 
+  Clock, 
+  HelpCircle 
+} from "lucide-react"
 import { mockGetHasilAkhir } from "@/lib/api-mock" 
+
+// Helper untuk memformat teks status (Hapus Underscore & Ubah Huruf)
+const formatStatusText = (text) => {
+  if (!text) return "";
+  // 1. Ganti underscore (_) dengan spasi
+  const spaced = text.replace(/_/g, " ");
+  // 2. Ubah menjadi Title Case (Huruf depan besar, sisanya kecil)
+  return spaced.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+}
 
 export default function ResultsPage() {
   const { user } = useAuth()
@@ -33,14 +45,49 @@ export default function ResultsPage() {
     }
   }
 
+  // Komponen Helper untuk Badge Status
   const StatusBadge = ({ status }) => {
-    const isKompeten = status === "KOMPETEN"
+    let colorClass = "text-gray-600";
+    let Icon = HelpCircle;
+    
+    // Format teks agar underscore hilang dan lebih rapi
+    let displayText = formatStatusText(status);
+
+    if (status === "KOMPETEN") {
+      colorClass = "text-green-600";
+      Icon = CheckCircle2;
+      displayText = "Kompeten";
+    } else if (status === "BELUM KOMPETEN" || status === "BELUM_KOMPETEN") {
+      colorClass = "text-red-600";
+      Icon = AlertCircle;
+      displayText = "Belum Kompeten";
+    } else if (status === "SEDANG_DINILAI") {
+      colorClass = "text-orange-600";
+      Icon = Clock;
+    } else if (status === "BELUM_ADA_NILAI" || status === "BELUM_ADA_PENILAIAN") {
+      colorClass = "text-gray-500";
+      // Hapus ikon tanda tanya jika belum ada penilaian
+      Icon = null; 
+    }
+
     return (
-      <div className={`flex items-center gap-2 ${isKompeten ? "text-green-600" : "text-red-600"}`}>
-        {isKompeten ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
-        <span className="text-1xl font-bold">{status}</span>
+      <div className={`flex items-center gap-2 ${colorClass}`}>
+        {/* Render Icon hanya jika tidak null */}
+        {Icon && <Icon className="w-5 h-5" />}
+        <span className="text-base font-bold uppercase">{displayText}</span>
       </div>
     )
+  }
+
+  // Helper untuk Warna Background Kartu Utama
+  const getCardStyle = (status) => {
+    switch (status) {
+      case "KOMPETEN": return "border-green-200 bg-green-50";
+      case "BELUM_KOMPETEN": 
+      case "BELUM KOMPETEN": return "border-red-200 bg-red-50";
+      case "SEDANG_DINILAI": return "border-orange-200 bg-orange-50";
+      default: return "border-gray-200 bg-gray-50"; // Belum ada nilai
+    }
   }
 
   return (
@@ -54,41 +101,48 @@ export default function ResultsPage() {
         {loading ? (
           <Skeleton className="h-32 w-full" />
         ) : (
-          <Card
-            className={`border-2 ${hasil?.statusAkhir === "KOMPETEN" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}`}
-          >
+          <Card className={`border-2 ${getCardStyle(hasil?.statusAkhir)}`}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl text-muted-foreground mb-1">Status Akhir</p>
-                  <p className={`text-3xl font-bold ${hasil?.statusAkhir === "KOMPETEN" ? "text-green-700" : "text-red-700"}`}>
-                    {hasil?.statusAkhir}
-                  </p>
-                </div>
-                <div>
-                  {hasil?.statusAkhir === "KOMPETEN" ? (
-                    <CheckCircle2 className="text-2xl w-15 h-20 text-green-600" />
-                  ) : (
-                    <AlertCircle className="w-20 h-20 text-red-600" />
-                  )}
+                  <div className="flex items-center gap-3">
+                    {hasil?.statusAkhir === "KOMPETEN" && <CheckCircle2 className="w-8 h-8 text-green-600" />}
+                    {(hasil?.statusAkhir === "BELUM KOMPETEN" || hasil?.statusAkhir === "BELUM_KOMPETEN") && <AlertCircle className="w-8 h-8 text-red-600" />}
+                    {hasil?.statusAkhir === "SEDANG_DINILAI" && <Clock className="w-8 h-8 text-orange-600" />}
+                    
+                    {/* Menggunakan formatStatusText agar underscore hilang */}
+                    <p className={`text-3xl font-bold uppercase 
+                      ${hasil?.statusAkhir === "KOMPETEN" ? "text-green-700" : 
+                        (hasil?.statusAkhir === "BELUM KOMPETEN" || hasil?.statusAkhir === "BELUM_KOMPETEN") ? "text-red-700" :
+                        hasil?.statusAkhir === "SEDANG_DINILAI" ? "text-orange-700" : "text-gray-700"
+                      }`}>
+                      {formatStatusText(hasil?.statusAkhir)}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {hasil?.statusAkhir === "KOMPETEN" && (
-                <div className="mt-4 pt-4 border-t border-green-200">
-                  <p className="text-sm text-green-700">
-                    Selamat! Anda telah dinyatakan KOMPETEN berdasarkan seluruh rangkaian asesmen.
-                  </p>
-                </div>
-              )}
-
-              {hasil?.statusAkhir === "BELUM KOMPETEN" && (
-                <div className="mt-4 pt-4 border-t border-red-200">
-                  <p className="text-sm text-red-700">
-                    Anda dinyatakan BELUM KOMPETEN. Silakan hubungi admin untuk info lebih lanjut.
-                  </p>
-                </div>
-              )}
+              {/* Pesan Kontekstual */}
+              <div className={`mt-4 pt-4 border-t ${
+                  hasil?.statusAkhir === "KOMPETEN" ? "border-green-200 text-green-700" : 
+                  (hasil?.statusAkhir === "BELUM KOMPETEN" || hasil?.statusAkhir === "BELUM_KOMPETEN") ? "border-red-200 text-red-700" :
+                  hasil?.statusAkhir === "SEDANG_DINILAI" ? "border-orange-200 text-orange-700" : "border-gray-200 text-gray-600"
+                }`}>
+                
+                {hasil?.statusAkhir === "KOMPETEN" && (
+                  <p>Selamat! Anda telah dinyatakan KOMPETEN berdasarkan seluruh rangkaian asesmen.</p>
+                )}
+                {(hasil?.statusAkhir === "BELUM KOMPETEN" || hasil?.statusAkhir === "BELUM_KOMPETEN") && (
+                  <p>Anda dinyatakan BELUM KOMPETEN. Silakan hubungi admin untuk info remedial.</p>
+                )}
+                {hasil?.statusAkhir === "SEDANG_DINILAI" && (
+                  <p>Jawaban Anda telah kami terima. Asesor sedang melakukan proses penilaian. Harap cek kembali secara berkala.</p>
+                )}
+                {(hasil?.statusAkhir === "BELUM_ADA_NILAI" || hasil?.statusAkhir === "BELUM_ADA_PENILAIAN") && (
+                  <p>Anda belum mengikuti atau menyelesaikan rangkaian ujian. Silakan selesaikan ujian terlebih dahulu.</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -102,7 +156,7 @@ export default function ResultsPage() {
             
             {/* === KARTU UJIAN TEORI === */}
             <Card className="border-2">
-              <CardHeader className="flex flex-row items-center gap-4 space-y-0">
+              <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
                 <div>
                   <CardTitle className="text-lg">Ujian Teori (Akumulasi)</CardTitle>
                   <CardDescription>Akumulasi kelulusan dari semua unit kompetensi.</CardDescription>
@@ -112,37 +166,60 @@ export default function ResultsPage() {
                  {loading ? <Skeleton className="h-10 w-32" /> : (
                     <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                         <StatusBadge status={hasil?.hasilTeori.statusAkumulasi} />
-                        <div className="text-right">
-                            <p className="text-lg font-bold">{hasil?.hasilTeori.totalUnitLulus} / {hasil?.hasilTeori.totalUnitSkema}</p>
-                            <p className="text-sm text-muted-foreground">Unit Lulus (Minimal 75%)</p>
-                        </div>
+                        {/* Tampilkan total unit lulus HANYA jika sudah ada nilai (bukan 'BELUM_ADA_PENILAIAN') */}
+                        {hasil?.statusAkhir !== "BELUM_ADA_NILAI" && hasil?.statusAkhir !== "BELUM_ADA_PENILAIAN" && (
+                          <div className="text-right">
+                              <p className="text-lg font-bold">{hasil?.hasilTeori.totalUnitLulus} / {hasil?.hasilTeori.totalUnitSkema}</p>
+                              <p className="text-sm text-muted-foreground">Unit Lulus</p>
+                          </div>
+                        )}
                     </div>
                  )}
                  
-                 <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                    <p className="text-sm font-medium mb-2">Rincian Kelulusan per Unit (Minimal 75% Soal "SESUAI"):</p>
-                    {loading ? <Skeleton className="h-20 w-full" /> : 
-                      hasil?.hasilTeori.rincianUnit.map((unit) => (
-                      <div key={unit.unitId} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium">{unit.judul}</p>
-                           <p className="text-xs text-muted-foreground">
-                             {unit.soalSesuai} dari {unit.soalTotal} soal dinyatakan "SESUAI"
-                           </p>
-                        </div>
-                        <p className={`text-1xl font-bold  ${unit.status === "KOMPETEN" ? "text-green-600" : "text-red-600"}`}>
-                          {unit.status}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
+                 {hasil?.hasilTeori.rincianUnit.length > 0 && (
+                   <div className="space-y-2 max-h-60 overflow-y-auto pr-2 mt-2">
+                      <p className="text-sm font-medium mb-2">Rincian per Unit:</p>
+                      {loading ? <Skeleton className="h-20 w-full" /> : 
+                        hasil?.hasilTeori.rincianUnit.map((unit) => {
+                          // Cek apakah status unit sudah final (KOMPETEN/BELUM)
+                          const isGraded = unit.status === "KOMPETEN" || unit.status === "BELUM_KOMPETEN" || unit.status === "BELUM KOMPETEN";
+                          
+                          return (
+                            <div key={unit.unitId} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                              <div>
+                                <p className="text-sm font-medium">{unit.judul}</p>
+                                
+                                {/* LOGIKA PENGHAPUSAN TEKS:
+                                  Hanya tampilkan skor jika sudah dinilai (isGraded = true).
+                                  Jika belum dinilai/sedang dinilai, bagian ini kosong (null).
+                                */}
+                                {isGraded ? (
+                                   <p className="text-xs text-muted-foreground">
+                                     {unit.soalSesuai} dari {unit.soalTotal} soal "SESUAI"
+                                   </p>
+                                ) : null} 
+                              </div>
+                              
+                              {/* Badge Kecil per Unit */}
+                              <span className={`text-xs font-bold px-2 py-1 rounded 
+                                ${unit.status === "KOMPETEN" ? "bg-green-100 text-green-700" : 
+                                  (unit.status === "BELUM KOMPETEN" || unit.status === "BELUM_KOMPETEN") ? "bg-red-100 text-red-700" :
+                                  unit.status === "SEDANG_DINILAI" ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"
+                                }`}>
+                                {/* Format teks di sini juga */}
+                                {formatStatusText(unit.status).toUpperCase()}
+                              </span>
+                            </div>
+                          )
+                        })}
+                    </div>
+                 )}
               </CardContent>
             </Card>
             
             {/* === KARTU UJIAN PRAKTIKUM === */}
             <Card className="border-2">
-              <CardHeader className="flex flex-row items-center gap-4 space-y-0">
+              <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
                 <div>
                   <CardTitle className="text-lg">Ujian Praktikum</CardTitle>
                   <CardDescription>Penilaian studi kasus (upload file .ppt)</CardDescription>
@@ -155,7 +232,7 @@ export default function ResultsPage() {
 
             {/* === KARTU UNJUK DIRI === */}
             <Card className="border-2">
-              <CardHeader className="flex flex-row items-center gap-4 space-y-0">
+              <CardHeader className="flex flex-row items-center gap-4 space-y-0 pb-2">
                 <div>
                   <CardTitle className="text-lg">Unjuk Diri</CardTitle>
                   <CardDescription>Penilaian presentasi di hadapan asesor</CardDescription>
