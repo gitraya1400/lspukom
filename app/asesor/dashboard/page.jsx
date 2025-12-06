@@ -1,3 +1,11 @@
+/**
+ * Halaman Dashboard Asesor
+ * * Berisi ringkasan tugas penilaian dan akses cepat:
+ * 1. Statistik per jenis ujian (Teori, Praktikum, Unjuk Diri).
+ * 2. Quick actions untuk melihat tugas, daftar asesi, dan jadwal.
+ * 3. Menampilkan banner selamat datang untuk Asesor.
+ */
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -11,8 +19,14 @@ import { CheckSquare, Users, Calendar, BookText, FlaskConical, Mic } from "lucid
 import Link from "next/link";
 import { cn } from "@/lib/utils"; // <-- Import cn
 
-// Komponen Card Statistik baru (sesuai desain Anda)
-const StatTypeCard = ({ title, icon, stats, colorClass, loading }) => {
+// ===============================================================
+// --- KOMPONEN 'StatTypeCard' (KARTU STATISTIK) ---
+// ===============================================================
+/**
+ * Menampilkan statistik tugas per kategori (Teori/Praktikum/Unjuk Diri)
+ * dengan warna border yang berbeda-beda.
+ */
+  const StatTypeCard = ({ title, icon, stats, colorClass, loading }) => {
   const Icon = icon;
   
   // Tentukan warna teks untuk angka (misal: menunggu = oranye)
@@ -65,9 +79,13 @@ const StatTypeCard = ({ title, icon, stats, colorClass, loading }) => {
   );
 };
 
+// ===============================================================
+// --- HALAMAN UTAMA DASHBOARD ASESOR ---
+// ===============================================================
 
 export default function AsesorDashboard() {
   const { user } = useAuth();
+  // State untuk menampung statistik per kategori {teori, praktikum, unjukDiri}
   const [stats, setStats] = useState(null); // State baru untuk menampung {teori, praktikum, unjukDiri}
   const [loading, setLoading] = useState(true);
 
@@ -77,25 +95,27 @@ export default function AsesorDashboard() {
     }
   }, [user]);
 
-  // Fungsi loadStats dimodifikasi untuk menghitung per jenis ujian
+  /**
+   * Mengambil data penugasan dan menghitung statistik secara manual di sisi klien.
+   */
   const loadStats = async () => {
     try {
       setLoading(true);
       const penugasanData = await mockGetPenugasanAsesor(user.id);
       
-      // Pisahkan tugas berdasarkan tipe
+      // 1. Pisahkan tugas berdasarkan tipe ujian
       const teoriTasks = penugasanData.filter(p => p.tipe === 'TEORI');
       const praktikumTasks = penugasanData.filter(p => p.tipe === 'PRAKTIKUM');
       const unjukDiriTasks = penugasanData.filter(p => p.tipe === 'UNJUK_DIRI');
 
-      // Fungsi helper untuk menghitung statistik
+      // 2. Helper untuk menghitung jumlah pending/completed
       const calcStats = (tasks) => ({
         total: tasks.length,
         pending: tasks.filter(p => p.statusPenilaian === 'BELUM_DINILAI').length,
         completed: tasks.filter(p => p.statusPenilaian === 'SELESAI').length,
       });
 
-      // Set state baru
+      // 3. Update state statistik
       setStats({
         teori: calcStats(teoriTasks),
         praktikum: calcStats(praktikumTasks),

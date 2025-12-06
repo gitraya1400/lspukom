@@ -1,4 +1,11 @@
-// frontend-lms-v3-master/app/asesor/grading/[penugasanId]/page.jsx
+/**
+ * Halaman Detail Penilaian (Asesor)
+ * * Fitur utama:
+ * 1. Menampilkan detail tugas penilaian per asesi.
+ * 2. Menampilkan jawaban/hasil tugas (preview file jika ada).
+ * 3. Form penilaian untuk menyimpan status kompetensi.
+ * 4. Dialog konfirmasi dan dialog sukses setelah submit.
+ */
 
 "use client";
 
@@ -7,8 +14,6 @@ import { useParams, useRouter } from "next/navigation";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-// Textarea tidak diperlukan lagi jika kita mengikuti permintaan sebelumnya (tanpa feedback)
-// import { Textarea } from "@/components/ui/textarea"; 
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -27,6 +32,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils"; 
 
+// ===============================================================
+// --- HALAMAN DETAIL PENILAIAN (FORM GRADING) ---
+// ===============================================================
+
 export default function GradingPage() {
   const params = useParams();
   const router = useRouter();
@@ -36,15 +45,19 @@ export default function GradingPage() {
   const [status, setStatus] = useState("BELUM KOMPETEN"); 
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // State untuk Dialog
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false); // <-- 2. STATE BARU
 
+  // Load Data Detail
   useEffect(() => {
     if (penugasanId) {
       setLoading(true);
       mockGetPenugasanDetail(penugasanId)
         .then((data) => {
           setPenugasan(data);
+          // Jika sudah dinilai sebelumnya, set status awal sesuai nilai database
           if (data.statusPenilaian === "SELESAI") {
             setStatus(data.nilaiKompetensi); 
           }
@@ -58,13 +71,14 @@ export default function GradingPage() {
     }
   }, [penugasanId]);
 
+  // Mock Link Jawaban (Simulasi file yang diupload asesi)
   const jawabanAsesi = {
     TEORI: "Ini adalah jawaban esai Asesi untuk unit ini. Jawabannya terlihat cukup komprehensif dan mencakup poin-poin utama yang diminta dalam soal.",
     PRAKTIKUM: "https://drive.google.com/file/d/1_jiqBu6xPRe9PVCSLYzYuHothBIW_6vU/preview", // Link preview Google
     UNJUK_DIRI: "Penilaian dilakukan offline. Asesi hadir dan mempresentasikan hasil dengan cukup baik.",
   };
 
-  // --- 3. FUNGSI HANDLESUBMIT DIPERBARUI ---
+  // Fungsi Submit Penilaian
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
@@ -103,6 +117,7 @@ export default function GradingPage() {
           <p className="text-muted-foreground mt-1">{penugasan.unitJudul}</p>
         </div>
 
+        {/* Info Card: Asesi & Skema */}
         <Card>
           <CardHeader>
             <CardTitle>Detail Penugasan</CardTitle>
@@ -253,7 +268,7 @@ export default function GradingPage() {
         </DialogContent>
       </Dialog>
       
-      {/* --- 4. DIALOG SUKSES BARU --- */}
+      {/* Dialog Sukses*/}
       <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>

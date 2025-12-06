@@ -1,4 +1,10 @@
-// frontend-lms-v3-master/app/asesor/grading/page.jsx
+/**
+ * Halaman Daftar Penilaian (Asesor)
+ * * Fitur utama:
+ * 1. Menampilkan daftar tugas penilaian terfilter (Teori, Praktikum, Unjuk Diri).
+ * 2. Memungkinkan penyaringan menurut kelas, unit, dan status.
+ * 3. Navigasi ke detail penilaian untuk menyimpan hasil penilaian.
+ */
 
 "use client";
 
@@ -18,6 +24,11 @@ import { cn } from "@/lib/utils";
 
 const ITEMS_PER_PAGE = 20;
 
+// ===============================================================
+// --- HELPER COMPONENTS ---
+// ===============================================================
+
+// Footer Paginasi untuk Tabel/List
 const PaginationFooter = ({ totalPages, currentPage, setCurrentPage }) => {
   if (totalPages <= 1) {
     return null; 
@@ -52,6 +63,7 @@ const PaginationFooter = ({ totalPages, currentPage, setCurrentPage }) => {
   );
 };
 
+// Kartu Ringkasan Status (Belum Dinilai / Selesai)
 const StatusCard = ({ title, value, filterValue, currentFilter, onClick, loading, icon: Icon }) => {
     const isSelected = currentFilter === filterValue;
     let colorClass = "";
@@ -79,19 +91,25 @@ const StatusCard = ({ title, value, filterValue, currentFilter, onClick, loading
     );
 };
 
+// ===============================================================
+// --- HALAMAN UTAMA DAFTAR PENILAIAN ---
+// ===============================================================
 export default function GradingListPage() {
   const { user } = useAuth();
   const [penugasan, setPenugasan] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // State Filter & Tab
   const [activeTab, setActiveTab] = useState("teori");
   const [filterStatus, setFilterStatus] = useState("BELUM_DINILAI");
 
+  // State Filter Spesifik
   const [filterKelasTeori, setFilterKelasTeori] = useState("SEMUA");
   const [filterUnitTeori, setFilterUnitTeori] = useState("SEMUA");
   const [filterKelasPraktikum, setFilterKelasPraktikum] = useState("SEMUA");
   const [filterKelasUnjukDiri, setFilterKelasUnjukDiri] = useState("SEMUA");
 
+  // State Filter Spesifik
   const [currentPageTeori, setCurrentPageTeori] = useState(1);
   const [currentPagePraktikum, setCurrentPagePraktikum] = useState(1);
   const [currentPageUnjukDiri, setCurrentPageUnjukDiri] = useState(1);
@@ -132,8 +150,10 @@ export default function GradingListPage() {
     }
   };
   
-  // --- LOGIKA DINAMIS KELAS DAN UNIT ---
-  
+  // ===============================================================
+  // --- LOGIKA FILTERING DATA (MEMOIZED) ---
+  // ===============================================================
+
   // 1. Filter Unit List berdasarkan Status
   const unitListTeori = useMemo(() => {
     if (!penugasan) return [];
@@ -235,8 +255,11 @@ export default function GradingListPage() {
   }, [kelasListUnjukDiri]);
 
 
-  // --- PERHITUNGAN STATS DAN PAGINASI (Tidak Berubah) ---
+  // ===============================================================
+  // --- DATA PROCESSING UNTUK TAMPILAN ---
+  // ===============================================================  
 
+// Hitung statistik (Total, Pending, Selesai) untuk kartu atas
   const statsByTipe = useMemo(() => {
     const calcStats = (tipe) => {
         const tasks = penugasan.filter(p => p.tipe === tipe);
@@ -253,6 +276,7 @@ export default function GradingListPage() {
     };
   }, [penugasan]);
 
+  // Fungsi Filter Utama
   const getFilteredPenugasan = (tipe, kelasFilter, unitFilter) => {
     let filtered = penugasan.filter(p => p.tipe === tipe);
 
@@ -271,6 +295,7 @@ export default function GradingListPage() {
     return filtered;
   };
 
+// Data Siap Tampil (Memoized)
   const fullTeoriList = useMemo(
     () => getFilteredPenugasan("TEORI", filterKelasTeori, filterUnitTeori),
     [penugasan, filterStatus, filterKelasTeori, filterUnitTeori]
@@ -284,6 +309,7 @@ export default function GradingListPage() {
     [penugasan, filterStatus, filterKelasUnjukDiri]
   );
 
+// Paginasi Data
   const { paginatedTeori, totalPagesTeori } = useMemo(() => {
     const totalPages = Math.ceil(fullTeoriList.length / ITEMS_PER_PAGE);
     const paginated = fullTeoriList.slice(
@@ -311,7 +337,7 @@ export default function GradingListPage() {
     return { paginatedUnjukDiri: paginated, totalPagesUnjukDiri: totalPages };
   }, [fullUnjukDiriList, currentPageUnjukDiri]);
 
-
+// Komponen List Item
   const PenugasanList = ({ list }) => {
     if (loading) {
       return (
@@ -373,6 +399,7 @@ export default function GradingListPage() {
             </CardContent>
           </Card>
 
+          {/* KONTEN TAB: UJIAN TEORI */}
           <TabsContent value="teori" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatusCard 
@@ -457,6 +484,7 @@ export default function GradingListPage() {
             </Card>
           </TabsContent>
 
+          {/* KONTEN TAB: UJIAN PRAKTIKUM (Struktur Serupa) */}
           <TabsContent value="praktikum" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatusCard 
@@ -520,7 +548,8 @@ export default function GradingListPage() {
               />
             </Card>
           </TabsContent>
-
+          
+          {/* KONTEN TAB: UNJUK DIRI (Struktur Serupa) */}
           <TabsContent value="unjuk-diri" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatusCard 
