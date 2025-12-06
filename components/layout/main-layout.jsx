@@ -1,7 +1,6 @@
-
 'use client'
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
@@ -14,6 +13,7 @@ import {
   CheckCircle, Calendar, Users, CheckSquare, BookMarked, User, Settings
 } from "lucide-react"
 import STISLogo from "@/public/logo-stis.png"
+import { mockGetProgressAsesi } from "@/lib/api-mock"
 
 // ==========================================
 // ICON MAP
@@ -38,6 +38,29 @@ export function MainLayout({ children }) {
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
+  // State untuk kunci pra-asesmen
+  const [praAsesmenLocked, setPraAsesmenLocked] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    async function checkPraAsesmen() {
+      if (!user || user.role !== "ASESI") {
+        if (mounted) setPraAsesmenLocked(false)
+        return
+      }
+      try {
+        const progress = await mockGetProgressAsesi(user.id)
+        if (mounted) {
+          setPraAsesmenLocked(progress?.statusPraAsesmen === "BELUM")
+        }
+      } catch (e) {
+        if (mounted) setPraAsesmenLocked(false)
+      }
+    }
+    checkPraAsesmen()
+    return () => { mounted = false }
+  }, [user])
+
   const logout = () => {
     authLogout()
     router.push("/login")
@@ -50,7 +73,15 @@ export function MainLayout({ children }) {
   // ==========================================
   let menuItems = MENU_ITEMS[user.role] || []
   if (user.role === "ASESI") {
+    // tetap sembunyikan sertifikat untuk ASESI (sebelumnya ada)
     menuItems = menuItems.filter(item => item.path !== "/asesi/certificate")
+
+    // Jika pra-asesmen belum selesai, batasi menu hanya ke halaman pra-asesmen
+    if (praAsesmenLocked) {
+      menuItems = [
+        { icon: "CheckCircle", label: "Pra-Asesmen", path: "/asesi/pra-asesmen" }
+      ]
+    }
   }
 
   const getRoleDisplay = (role) => {
