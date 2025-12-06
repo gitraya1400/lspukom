@@ -302,7 +302,7 @@ const SkemaContentManager = ({
     if (!deleteUnitTarget) return;
     try {
       await mockDeleteUnit(skemaId, deleteUnitTarget.id);
-      const freshUnits = await mockGetUnitsForSkema(skemaId);
+      const freshUnits = await mockGetUnitsForSkema(skemaId, activeTahunAjaran);
       setUnits(freshUnits || []);
       
       if (selectedUnit?.id === deleteUnitTarget.id) {
@@ -964,6 +964,7 @@ export default function SchemaPage() {
   const [activeTahunAjaran, setActiveTahunAjaran] = useState("");
   const [tahunAjaranList, setTahunAjaranList] = useState([]);
   const [isYearDialogOpen, setIsYearDialogOpen] = useState(false);
+  const [isDeleteYearAlertOpen, setIsDeleteYearAlertOpen] = useState(false); // State baru
   const [newYearForm, setNewYearForm] = useState({ tahun: "", duplicateFrom: "" });
 
   useEffect(() => {
@@ -1061,13 +1062,25 @@ export default function SchemaPage() {
     }
   };
 
-  const handleDeleteTahun = async () => {
+  const handleDeleteTahun = () => {
     if (!activeTahunAjaran) return;
-    if (!window.confirm(`Hapus tahun ${activeTahunAjaran}? Semua data tahun ini akan dihapus.`)) return;
-    await mockDeleteYearFromSkema(activeSkemaTab, activeTahunAjaran);
-    const list = await mockGetYearsForSkema(activeSkemaTab);
-    setTahunAjaranList(list);
-    setActiveTahunAjaran(list[0] || "");
+    setIsDeleteYearAlertOpen(true); 
+  };
+
+  const confirmDeleteTahun = async () => {
+    try {
+      await mockDeleteYearFromSkema(activeSkemaTab, activeTahunAjaran);
+      const list = await mockGetYearsForSkema(activeSkemaTab);
+      
+      setTahunAjaranList(list);
+      setActiveTahunAjaran(list.length > 0 ? list[0] : ""); 
+      setIsDeleteYearAlertOpen(false);
+      
+      setInfoDialog({ open: true, title: "Berhasil", message: "Tahun ajaran berhasil dihapus." });
+    } catch (err) {
+      console.error(err);
+      setInfoDialog({ open: true, title: "Gagal", message: "Gagal menghapus tahun ajaran." });
+    }
   };
 
   return (
@@ -1299,6 +1312,29 @@ export default function SchemaPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* --- Dialog Hapus Tahun Ajaran (BARU) --- */}
+      <AlertDialog open={isDeleteYearAlertOpen} onOpenChange={setIsDeleteYearAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Tahun Ajaran?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus <strong>Tahun Ajaran {activeTahunAjaran}</strong>? 
+              <br/><br/>
+              Semua Unit, Materi, dan Soal yang terkait dengan tahun ini akan dihapus permanen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteTahun} 
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog Info/Error */}
       <AlertDialog open={infoDialog.open} onOpenChange={() => setInfoDialog({ open: false, title: "", message: "" })}>
