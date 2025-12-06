@@ -9,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-// --- (PERUBAHAN 1: Impor AlertDialog) ---
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,12 +19,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-// --- (Batas Perubahan 1) ---
 import { 
   mockGetExamStatus,
   mockMarkUnjukDiriCompleted,
-  mockGetSoalPraktikumGabungan, // <-- Impor baru
-  mockSubmitPraktikum         // <-- Impor baru
+  mockGetSoalPraktikumGabungan, 
+  mockSubmitPraktikum         
 } from "@/lib/api-mock"
 import { Skeleton } from "@/components/ui/skeleton"
 import { 
@@ -35,7 +33,7 @@ import {
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-// --- Helper Components (Tidak Berubah) ---
+// --- Helper Components ---
 
 const LockAlert = ({ message }) => (
   <Alert variant="destructive" className="bg-red-50 border-red-200">
@@ -92,10 +90,11 @@ export default function ExamsPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   
-  // --- (PERUBAHAN 2: State untuk modal) ---
+  // State Dialogs
   const [showUnjukDiriConfirm, setShowUnjukDiriConfirm] = useState(false);
+  // --- (MODIFIKASI 1: State baru untuk konfirmasi upload) ---
+  const [showUploadConfirm, setShowUploadConfirm] = useState(false);
   const [successDialog, setSuccessDialog] = useState({ open: false, message: "" });
-  // --- (Batas Perubahan 2) ---
 
   useEffect(() => {
     if (isAuthLoading) return; 
@@ -115,7 +114,6 @@ export default function ExamsPage() {
 
       if (statusData.praktikum.status === "AKTIF") {
         const soalData = await mockGetSoalPraktikumGabungan(user.skemaId)
-        // Pastikan soalData adalah array dan ambil elemen pertama
         setSoalPraktikum(Array.isArray(soalData) ? soalData[0] : soalData)
       }
       
@@ -130,7 +128,6 @@ export default function ExamsPage() {
     const selectedFile = e.target.files[0]
     if (selectedFile) {
       const fileType = selectedFile.type
-      // --- PERBAIKAN 1: Tambahkan "application/pdf" ---
       if (
         fileType === "application/vnd.ms-powerpoint" || 
         fileType === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
@@ -140,15 +137,15 @@ export default function ExamsPage() {
         setUploadError(null)
       } else {
         setFile(null)
-        // --- PERBAIKAN 2: Perbarui pesan error ---
         setUploadError("File harus berekstensi .pdf, .ppt, atau .pptx")
       }
     }
   }
 
-  // --- (PERUBAHAN 3: Modifikasi handler upload) ---
-  const handleUploadSubmit = async (e) => {
+  // --- (MODIFIKASI 2: Handler Trigger - Hanya validasi & buka dialog) ---
+  const handleUploadTrigger = (e) => {
     e.preventDefault()
+    
     if (!file) {
       setUploadError("Silakan pilih file terlebih dahulu.")
       return
@@ -157,32 +154,36 @@ export default function ExamsPage() {
       setUploadError("Sesi Anda berakhir. Silakan login kembali.");
       return;
     }
+    
+    // Jika valid, buka dialog konfirmasi
+    setShowUploadConfirm(true);
+  }
 
+  // --- (MODIFIKASI 3: Handler Eksekusi - Dipanggil saat klik "Ya" di dialog) ---
+  const executeUpload = async () => {
     setIsUploading(true)
     setUploadError(null)
 
     try {
       await mockSubmitPraktikum(user.id, file.name)
-      // alert("File praktikum Anda berhasil diunggah!") // <-- Ganti ini
-      await loadData(); // Muat ulang semua data
-      setSuccessDialog({ open: true, message: "File praktikum Anda berhasil diunggah!" }); // <-- Dengan ini
+      setShowUploadConfirm(false); // Tutup dialog konfirmasi
+      await loadData(); 
+      setSuccessDialog({ open: true, message: "File praktikum Anda berhasil diunggah!" });
     } catch (err) {
       console.error("Gagal mengunggah file:", err)
       setUploadError("Terjadi kesalahan saat mengunggah file. Silakan coba lagi.")
+      setShowUploadConfirm(false); // Tutup dialog jika error agar user bisa coba lagi
     } finally {
       setIsUploading(false)
     }
   }
-  // --- (Batas Perubahan 3) ---
 
-  // --- (PERUBAHAN 4: Modifikasi handler unjuk diri) ---
-  // Handler ini sekarang hanya membuka dialog konfirmasi
+  // Handler unjuk diri
   const handleMarkUnjukDiriComplete = () => {
     if (!user) return;
     setShowUnjukDiriConfirm(true);
   }
 
-  // Handler ini dieksekusi saat tombol "Ya" di dialog diklik
   const executeMarkUnjukDiriComplete = async () => {
     if (!user) return;
     
@@ -190,18 +191,15 @@ export default function ExamsPage() {
     try {
       await mockMarkUnjukDiriCompleted(user.id);
       await loadData(); 
-      // Tampilkan dialog sukses setelah berhasil
       setSuccessDialog({ open: true, message: "Status unjuk diri berhasil diperbarui." });
     } catch (error) {
       console.error("Gagal menandai unjuk diri selesai:", error);
-      // Ganti alert error yang tersisa
       setUploadError("Gagal menyimpan status. Silakan coba lagi."); 
     } finally {
       setIsSubmittingUnjukDiri(false);
-      setShowUnjukDiriConfirm(false); // Tutup dialog konfirmasi
+      setShowUnjukDiriConfirm(false);
     }
   }
-  // --- (Batas Perubahan 4) ---
 
   if (loading || isAuthLoading || !examStatus || !user) {
     return (
@@ -222,7 +220,6 @@ export default function ExamsPage() {
       <div className="p-6 space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Ujian Kompetensi</h1>
-
         </div>
 
         <Tabs defaultValue="teori" className="w-full">
@@ -362,25 +359,23 @@ export default function ExamsPage() {
                           </CardContent>
                         </Card>
                         
-                        {/* 3. KARTU UPLOAD */}
+                        {/* KARTU UPLOAD */}
                         <Card className="border-muted-foreground/30">
                           <CardHeader>
                             <CardTitle className="text-lg">Unggah Jawaban</CardTitle>
                             <CardDescription>
-                              {/* --- PERBAIKAN 3: Perbarui deskripsi --- */}
                               Unggah 1 file (.pdf, .ppt, atau .pptx) yang berisi hasil akhir Anda.
                             </CardDescription>
                           </CardHeader>
                           <CardContent>
-                            <form onSubmit={handleUploadSubmit} className="space-y-4">
+                            {/* --- MODIFIKASI 4: Form memanggil handleUploadTrigger --- */}
+                            <form onSubmit={handleUploadTrigger} className="space-y-4">
                               <div className="space-y-2">
-                                {/* --- PERBAIKAN 4 (Opsional tapi bagus): Perbarui label --- */}
                                 <Label htmlFor="file-upload">Pilih File (.pdf / .ppt / .pptx)</Label>
                                 <Input 
                                   id="file-upload" 
                                   type="file" 
                                   onChange={handleFileChange}
-                                  // --- PERBAIKAN 5: Tambahkan .pdf dan application/pdf ---
                                   accept=".pdf, .ppt, .pptx, application/pdf, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.presentationml.presentation"
                                   disabled={isUploading}
                                 />
@@ -478,7 +473,7 @@ export default function ExamsPage() {
         </Tabs>
       </div>
       
-      {/* --- (PERUBAHAN 5: Tambahkan 2 modal dialog) --- */}
+      {/* Dialog Konfirmasi Unjuk Diri */}
       <AlertDialog open={showUnjukDiriConfirm} onOpenChange={setShowUnjukDiriConfirm}>
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
@@ -496,6 +491,25 @@ export default function ExamsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* --- (MODIFIKASI 5: Dialog Konfirmasi Upload Praktikum Baru) --- */}
+      <AlertDialog open={showUploadConfirm} onOpenChange={setShowUploadConfirm}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Konfirmasi Data</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin data yang diisi sudah benar? Data yang telah disimpan tidak dapat diubah lagi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUploading}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={executeUpload} disabled={isUploading}>
+              {isUploading ? "Menyimpan..." : "Ya, Lanjutkan"}
+            </AlertDialogAction>
+          </AlertDialogFooter> 
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog Sukses Umum */}
       <AlertDialog open={successDialog.open} onOpenChange={(open) => setSuccessDialog({ ...successDialog, open })}>
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>
@@ -511,7 +525,6 @@ export default function ExamsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* --- (Batas Perubahan 5) --- */}
 
     </MainLayout>
   )
