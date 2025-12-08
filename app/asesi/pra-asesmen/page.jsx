@@ -1,5 +1,12 @@
-// Ini adalah halaman pertama yang akan dilihat Asesi setelah login pertama kali
-
+/**
+ * Halaman ini adalah gerbang awal (Pra-Asesmen) bagi Asesi.
+ * Asesi wajib mengisi data diri (APL-01) dan asesmen mandiri (APL-02).
+ * Jika belum selesai, akses ke menu lain akan dibatasi (lihat logic di MainLayout).
+ * * FITUR:
+ * 1. Wizard multi-step (Data Diri -> Asesmen Mandiri -> Konfirmasi).
+ * 2. Validasi form sederhana.
+ * 3. Penyimpanan data ke Mock API.
+ */
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -15,7 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel, // <-- Impor baru
+  AlertDialogCancel, 
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -26,6 +33,9 @@ import { mockSubmitPraAsesmen, mockGetProgressAsesi } from "@/lib/api-mock"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle, User, FileUp, CheckCircle2 } from "lucide-react"
 
+// ===============================================================
+// --- KOMPONEN UTAMA PRA-ASESMEN ---
+// ===============================================================
 export default function PraAsesmenPage() {
   const { user } = useAuth()
   const router = useRouter()

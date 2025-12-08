@@ -1,3 +1,13 @@
+
+/**
+ * Halaman Hub Ujian Kompetensi (Asesi)
+ * * Fitur utama:
+ * 1. Tab untuk 3 jenis ujian: Teori (offline), Praktikum (online), Unjuk Diri (offline).
+ * 2. Menampilkan status dan jadwal ujian.
+ * 3. Upload file praktikum dengan konfirmasi.
+ * 4. Konfirmasi kehadiran unjuk diri.
+ * 5. Logika pembukaan ujian berurutan (tryout → teori → praktikum → unjuk diri).
+ */
 "use client"
 
 import { useEffect, useState } from "react"
@@ -33,8 +43,13 @@ import {
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-// --- Helper Components ---
+// ===============================================================
+// --- HELPER COMPONENTS ---
+// ===============================================================
 
+/**
+ * Alert untuk ujian yang terkunci
+ */
 const LockAlert = ({ message }) => (
   <Alert variant="destructive" className="bg-red-50 border-red-200">
     <Lock className="h-4 w-4 text-red-700" />
@@ -43,6 +58,9 @@ const LockAlert = ({ message }) => (
   </Alert>
 );
 
+/**
+ * Alert untuk menampilkan informasi jadwal ujian
+ */
 const JadwalInfo = ({ jadwal }) => (
   <Alert className="bg-blue-50 border-blue-200">
     <Calendar className="h-4 w-4 text-blue-700" />
@@ -55,6 +73,9 @@ const JadwalInfo = ({ jadwal }) => (
   </Alert>
 );
 
+/**
+ * Alert untuk status menunggu jadwal
+ */
 const WaitAlert = ({ message }) => (
   <Alert>
     <Clock className="h-4 w-4" />
@@ -63,6 +84,9 @@ const WaitAlert = ({ message }) => (
   </Alert>
 );
 
+/**
+ * Alert untuk ujian yang sudah selesai
+ */
 const SuccessAlert = ({ message }) => (
   <Alert className="bg-green-50 border-green-200">
     <CheckCircle2 className="h-4 w-4 text-green-700" />
@@ -71,8 +95,10 @@ const SuccessAlert = ({ message }) => (
   </Alert>
 );
 
-// --- Komponen Utama Halaman ---
 
+// ===============================================================
+// --- HALAMAN UTAMA UJIAN KOMPETENSI ---
+// ===============================================================
 export default function ExamsPage() {
   const { user, loading: isAuthLoading } = useAuth()
   const router = useRouter()
@@ -92,10 +118,12 @@ export default function ExamsPage() {
   
   // State Dialogs
   const [showUnjukDiriConfirm, setShowUnjukDiriConfirm] = useState(false);
-  // --- (MODIFIKASI 1: State baru untuk konfirmasi upload) ---
   const [showUploadConfirm, setShowUploadConfirm] = useState(false);
   const [successDialog, setSuccessDialog] = useState({ open: false, message: "" });
 
+  // ===============================================================
+  // --- LIFECYCLE: LOAD DATA ---
+  // ===============================================================
   useEffect(() => {
     if (isAuthLoading) return; 
     if (!user) {
@@ -105,6 +133,9 @@ export default function ExamsPage() {
     loadData();
   }, [user, isAuthLoading, router])
 
+  /**
+   * Load status ujian dan soal praktikum jika diperlukan
+   */
   const loadData = async () => {
     if (!user) return;
     try {
@@ -112,6 +143,7 @@ export default function ExamsPage() {
       const statusData = await mockGetExamStatus(user.id)
       setExamStatus(statusData)
 
+      // Load soal praktikum jika status AKTIF
       if (statusData.praktikum.status === "AKTIF") {
         const soalData = await mockGetSoalPraktikumGabungan(user.skemaId)
         setSoalPraktikum(Array.isArray(soalData) ? soalData[0] : soalData)
@@ -123,7 +155,14 @@ export default function ExamsPage() {
       setLoading(false)
     }
   }
+
+  // ===============================================================
+  // --- EVENT HANDLERS: UPLOAD PRAKTIKUM ---
+  // ===============================================================
   
+  /**
+   * Handle perubahan file input dengan validasi tipe file
+   */
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0]
     if (selectedFile) {
@@ -142,7 +181,10 @@ export default function ExamsPage() {
     }
   }
 
-  // --- (MODIFIKASI 2: Handler Trigger - Hanya validasi & buka dialog) ---
+  /**
+   * Validasi file dan buka dialog konfirmasi
+   * Dipanggil saat form di-submit
+   */  
   const handleUploadTrigger = (e) => {
     e.preventDefault()
     
@@ -159,7 +201,10 @@ export default function ExamsPage() {
     setShowUploadConfirm(true);
   }
 
-  // --- (MODIFIKASI 3: Handler Eksekusi - Dipanggil saat klik "Ya" di dialog) ---
+  /**
+   * Eksekusi upload setelah user konfirmasi
+   * Dipanggil saat klik "Ya" di dialog
+   */
   const executeUpload = async () => {
     setIsUploading(true)
     setUploadError(null)
@@ -178,12 +223,21 @@ export default function ExamsPage() {
     }
   }
 
-  // Handler unjuk diri
+  // ===============================================================
+  // --- EVENT HANDLERS: UNJUK DIRI ---
+  // ===============================================================
+  
+  /**
+   * Trigger dialog konfirmasi untuk tandai unjuk diri selesai
+   */
   const handleMarkUnjukDiriComplete = () => {
     if (!user) return;
     setShowUnjukDiriConfirm(true);
   }
 
+  /**
+   * Eksekusi tandai unjuk diri selesai setelah konfirmasi
+   */
   const executeMarkUnjukDiriComplete = async () => {
     if (!user) return;
     
@@ -201,6 +255,9 @@ export default function ExamsPage() {
     }
   }
 
+  // ===============================================================
+  // --- RENDER: LOADING STATE ---
+  // ===============================================================
   if (loading || isAuthLoading || !examStatus || !user) {
     return (
       <MainLayout>
@@ -215,6 +272,9 @@ export default function ExamsPage() {
   
   const { teori, praktikum, unjukDiri } = examStatus;
 
+  // ===============================================================
+  // --- RENDER: MAIN UI ---
+  // ===============================================================  
   return (
     <MainLayout>
       <div className="p-6 space-y-6">
@@ -368,7 +428,6 @@ export default function ExamsPage() {
                             </CardDescription>
                           </CardHeader>
                           <CardContent>
-                            {/* --- MODIFIKASI 4: Form memanggil handleUploadTrigger --- */}
                             <form onSubmit={handleUploadTrigger} className="space-y-4">
                               <div className="space-y-2">
                                 <Label htmlFor="file-upload">Pilih File (.pdf / .ppt / .pptx)</Label>
@@ -491,7 +550,7 @@ export default function ExamsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* --- (MODIFIKASI 5: Dialog Konfirmasi Upload Praktikum Baru) --- */}
+      {/* Dialog Konfirmasi Upload Praktikum Baru */}
       <AlertDialog open={showUploadConfirm} onOpenChange={setShowUploadConfirm}>
         <AlertDialogContent className="sm:max-w-md">
           <AlertDialogHeader>

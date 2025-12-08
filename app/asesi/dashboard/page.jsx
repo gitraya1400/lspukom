@@ -1,3 +1,11 @@
+/**
+ * Halaman Dashboard Asesi
+ * * Fitur utama:
+ * 1. Menampilkan progress keseluruhan sertifikasi (%).
+ * 2. Menampilkan 3 fase utama: Pembelajaran, Tryout, Ujian Kompetensi.
+ * 3. Logika pembukaan fase berurutan (sequential unlock).
+ * 4. Auto-redirect ke pra-asesmen jika belum selesai.
+ */
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
@@ -12,6 +20,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Check, Play, Lock } from "lucide-react"
 import Link from "next/link"
 
+// ===============================================================
+// --- KOMPONEN: FASE CARD ---
+// ===============================================================
 const FaseCard = ({ fase, judul, deskripsi, status, link, progressValue }) => {
   let statusButton
 
@@ -68,13 +79,18 @@ const FaseCard = ({ fase, judul, deskripsi, status, link, progressValue }) => {
   )
 }
 
-
+// ===============================================================
+// --- HALAMAN UTAMA DASHBOARD ASESI ---
+// ===============================================================
 export default function AsesiDashboard() {
   const { user, loading: isAuthLoading } = useAuth() 
   const router = useRouter()
   const [progress, setProgress] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  // ===============================================================
+  // --- LIFECYCLE: LOAD DATA & REDIRECT ---
+  // ===============================================================
   useEffect(() => {
     if (isAuthLoading) {
       return; 
@@ -85,14 +101,18 @@ export default function AsesiDashboard() {
     }
     loadData()
   }, [user, isAuthLoading, router])
-
+  
+  /**
+   * Load progress asesi dan redirect ke pra-asesmen jika belum selesai
+   */
   const loadData = async () => {
     try {
       setLoading(true)
       if (!user) return
 
       const progressData = await mockGetProgressAsesi(user.id)
-      
+
+      // Redirect ke pra-asesmen jika belum mengisi
       if (progressData.statusPraAsesmen === "BELUM") {
         router.push("/asesi/pra-asesmen")
         return 
@@ -107,6 +127,9 @@ export default function AsesiDashboard() {
     }
   }
   
+  // ===============================================================
+  // --- KALKULASI PROGRESS KESELURUHAN ---
+  // =============================================================== 
   const overallProgress = useMemo(() => {
     if (!progress) return 0;
     
@@ -137,14 +160,20 @@ export default function AsesiDashboard() {
     )
   }
 
+  // ===============================================================
+  // --- LOGIKA STATUS FASE (Sequential Unlock) ---
+  // ===============================================================
+  // Fase 1 (Pembelajaran): AKTIF jika progressPembelajaran < 100%, SELESAI jika 100%
   const progressPercentage = progress?.progressPembelajaran || 0
   const statusFase1 = progressPercentage === 100 ? "SELESAI" : "AKTIF"
   
+  // Fase 2 (Tryout): AKTIF jika Fase 1 SELESAI dan tryout belum selesai
   let statusFase2 = "TERKUNCI"
   if (statusFase1 === "SELESAI") {
     statusFase2 = progress.tryoutSelesai ? "SELESAI" : "AKTIF"
   }
   
+  // Fase 3 (Ujian): AKTIF jika Fase 2 SELESAI  
   let statusFase3 = "TERKUNCI"
   if (statusFase2 === "SELESAI") {
     statusFase3 = "AKTIF" 
@@ -153,7 +182,8 @@ export default function AsesiDashboard() {
   return (
     <MainLayout>
       <div className="p-6 space-y-6">
-        
+
+        {/* Banner Selamat Datang */}
         <div className="w-full bg-blue-700 text-white rounded-lg p-8 space-y-4">
             <h1 className="text-3xl font-bold">Selamat Datang, {user?.nama}!</h1>
             <p className="text-blue-200 mt-1">Ikuti 3 fase untuk menyelesaikan sertifikasi.</p>
@@ -167,6 +197,7 @@ export default function AsesiDashboard() {
             </div>
         </div>
 
+        {/* Daftar Fase */}
         <div className="space-y-4">
           <FaseCard 
             fase="Fase 1: Pembelajaran"

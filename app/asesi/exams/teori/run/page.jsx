@@ -1,3 +1,12 @@
+/**
+ * Halaman Eksekusi Ujian Teori (Asesi)
+ * * Fitur utama:
+ * 1. Fullscreen mode wajib selama ujian.
+ * 2. Timer countdown dengan auto-submit.
+ * 3. Local storage untuk save/restore progress.
+ * 4. Validasi jadwal ujian (tanggal & waktu).
+ * 5. Navigasi soal dan tracking jawaban.
+ */
 "use client"
 
 import { useEffect, useState, useCallback, useMemo } from "react"
@@ -20,12 +29,23 @@ import {
 } from "@/lib/api-mock"
 import Link from "next/link"
 
+// ===============================================================
+// --- HELPER FUNCTIONS ---
+// ===============================================================
+
+/**
+ * Generate unique key untuk localStorage berdasarkan user dan skema
+ */
 const getExamStorageKey = (userId, skemaId) => `teori_exam_progress_${userId}_${skemaId}`;
 
+// ===============================================================
+// --- HALAMAN EKSEKUSI UJIAN TEORI ---
+// ===============================================================
 export default function TeoriExamRunPage() {
   const { user, loading: isAuthLoading } = useAuth()
   const router = useRouter()
 
+  // State untuk data soal dan unit
   const [units, setUnits] = useState([])
   const [soal, setSoal] = useState([])
   const [unitDetails, setUnitDetails] = useState([]) 
@@ -34,6 +54,7 @@ export default function TeoriExamRunPage() {
   const [isChecking, setIsChecking] = useState(true) 
   const [authError, setAuthError] = useState(null) 
 
+  // State untuk navigasi dan jawaban
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false)
 
@@ -49,12 +70,18 @@ export default function TeoriExamRunPage() {
     return getExamStorageKey(user.id, user.skemaId)
   }, [user])
 
+  /**
+   * Hapus state ujian dari localStorage
+   */
   const clearExamState = useCallback(() => {
     if (storageKey) {
       localStorage.removeItem(storageKey)
     }
   }, [storageKey])
 
+  // ===============================================================
+  // --- FULLSCREEN MANAGEMENT ---
+  // ===============================================================
   const openFullscreen = () => {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
@@ -71,6 +98,14 @@ export default function TeoriExamRunPage() {
     }
   }
 
+  // ===============================================================
+  // --- EVENT HANDLERS ---
+  // ===============================================================
+
+  /**
+   * Submit ujian ke server dan redirect ke halaman ujian
+   * Dipanggil saat waktu habis atau user klik selesai
+   */
   const handleSubmitExam = useCallback(async () => {
     if (!user) return;
 
@@ -86,6 +121,9 @@ export default function TeoriExamRunPage() {
     window.location.href = "/asesi/exams";
   }, [answers, user, clearExamState])
 
+  // ===============================================================
+  // --- TIMER COUNTDOWN ---
+  // ===============================================================  
   useEffect(() => {
     if (!isExamActive || !isRestored) return
     
@@ -103,6 +141,9 @@ export default function TeoriExamRunPage() {
     return () => clearInterval(timer)
   }, [isExamActive, isRestored, handleSubmitExam])
 
+  // ===============================================================
+  // --- FULLSCREEN MONITORING ---
+  // ===============================================================
   useEffect(() => {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement && isExamActive) {
@@ -121,6 +162,11 @@ export default function TeoriExamRunPage() {
     };
   }, [isExamActive, isRestored]);
 
+  // ===============================================================
+  // --- RESTORE STATE DARI LOCALSTORAGE ---
+  // ===============================================================
+  // Cek apakah ada ujian yang sedang berjalan
+  // Jika ada, restore jawaban dan waktu tersisa
   const loadExamData = useCallback(async () => {
     if (!user || !storageKey) return; 
 
@@ -166,6 +212,9 @@ export default function TeoriExamRunPage() {
     }
   }, [user, storageKey]); 
 
+  // ===============================================================
+  // --- LIFECYCLE: VALIDASI JADWAL & LOAD DATA ---
+  // ===============================================================
   useEffect(() => {
     if (isAuthLoading) return; 
     if (!user) { 
@@ -180,6 +229,7 @@ export default function TeoriExamRunPage() {
         setAuthError(null);
         const status = await mockGetExamStatus(user.id);
 
+        // Validasi status ujian
         if (status.teori.status === "TERKUNCI") {
           setAuthError("Anda belum memenuhi prasyarat (menyelesaikan Tryout) untuk ujian ini.");
           return;
@@ -221,7 +271,9 @@ export default function TeoriExamRunPage() {
     checkScheduleAndLoad();
   }, [user, isAuthLoading, router, storageKey, loadExamData]); 
 
-
+  // ===============================================================
+  // --- AUTO-SAVE JAWABAN KE LOCALSTORAGE ---
+  // ===============================================================
   useEffect(() => {
     if (!isExamActive || !isRestored || !storageKey) return;
     try {
@@ -232,6 +284,9 @@ export default function TeoriExamRunPage() {
     } catch (e) { console.error("Gagal simpan jawaban:", e) }
   }, [answers, isExamActive, isRestored, storageKey])
 
+  // ===============================================================
+  // --- AUTO-SAVE WAKTU KE LOCALSTORAGE ---
+  // ===============================================================
   useEffect(() => {
     if (!isExamActive || !isRestored || !storageKey) return;
     try {
@@ -244,7 +299,9 @@ export default function TeoriExamRunPage() {
     } catch (e) { console.error("Gagal simpan waktu:", e) }
   }, [timeLeft, isExamActive, isRestored, storageKey])
 
-
+  // ===============================================================
+  // --- EVENT HANDLERS: EXAM ACTIONS ---
+  // ===============================================================
   const handleStartExam = () => setIsExamActive(true)
   
   const handleAnswerChange = (value) => {
@@ -267,6 +324,9 @@ export default function TeoriExamRunPage() {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
+  // ===============================================================
+  // --- RENDER: LOADING & ERROR STATES ---
+  // ===============================================================
   if (isAuthLoading || isChecking) {
     return (
       <MainLayout>
@@ -328,6 +388,9 @@ export default function TeoriExamRunPage() {
   const totalDurationMinutes = Math.floor(units.reduce((sum, unit) => sum + (unit.durasiTeori || 15), 0));
   const areAllAnswered = answeredCount >= soal.length;
 
+  // ===============================================================
+  // --- RENDER: EXAM MODE (FULLSCREEN) ---
+  // ===============================================================
   if (isExamActive) {
     return (
       <div className="bg-gray-100 min-h-screen p-6">
