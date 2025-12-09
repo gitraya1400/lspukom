@@ -213,6 +213,7 @@ const AdminEventCard = ({ event, onEdit, onDelete }) => {
         </div>
       </div>
       <div className="flex flex-wrap gap-2 w-full">
+        
         {event.type === "exam" && (
           <Button
             size="sm"
@@ -224,6 +225,7 @@ const AdminEventCard = ({ event, onEdit, onDelete }) => {
             Atur Peserta
           </Button>
         )}
+        
         <Button size="sm" variant="ghost" className="text-gray-600" onClick={onEdit}>
           <Edit2 className="w-4 h-4 mr-2" />
           Edit
