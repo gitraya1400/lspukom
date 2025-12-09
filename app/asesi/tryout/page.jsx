@@ -307,8 +307,7 @@ export default function TryoutPage() {
                 variant="outline"
                 onClick={handleNextQuestion}
                 disabled={currentSoalIndex === soalList.length - 1}
-                className="flex-1"
-              >
+                >
                 Selanjutnya
               </Button>
             </div>
