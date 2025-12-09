@@ -266,7 +266,7 @@ export default function AsesiListPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="SEMUA">Semua Status</SelectItem>
-                      <SelectItem value="BELUM_SELESAI">Belum Selesai (Pending)</SelectItem>
+                      <SelectItem value="BELUM_SELESAI">Belum Dinilai </SelectItem>
                       <SelectItem value="SUDAH_SELESAI">Sudah Selesai</SelectItem>
                     </SelectContent>
                   </Select>
