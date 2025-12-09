@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+// 1. Import komponen Textarea
+import { Textarea } from "@/components/ui/textarea";
 import { 
   mockGetUnitsForSkema, 
   mockGetSoalTryoutGabungan, 
@@ -283,8 +285,9 @@ export default function TryoutPage() {
                 <CardDescription className="pt-2 text-base text-gray-800">{currentSoal.teks}</CardDescription>
               </CardHeader>
               <CardContent>
-                <textarea 
-                  className="w-full min-h-[400px] p-3 border rounded-md" 
+                {/* 2. Ubah textarea standar menjadi komponen Textarea dengan tinggi min-h-40 (sama dengan ujian teori) */}
+                <Textarea 
+                  className="min-h-40" 
                   placeholder="Tulis jawaban esai Anda di sini..." 
                   value={answers[currentSoal.id] || ""} 
                   onChange={(e) => handleAnswerChange(currentSoal.id, e.target.value)} 

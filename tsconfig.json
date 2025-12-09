@@ -53,10 +53,14 @@
     "app/asesi/certificate/page.jsx",
     "app/admin/timeline/page.jsx",
     ".next\\dev/types/**/*.ts",
-    ".next\\dev/types/**/*.ts", 
-    "app/asesi/results/page.jsx", 
-    "app/layout.jsx", "lib/api-contract.jsx", 
-    "app/dashboard/page.jsx", "app/page.jsx"  ],
+    ".next\\dev/types/**/*.ts",
+    "app/asesi/results/page.jsx",
+    "app/layout.jsx",
+    "lib/api-contract.jsx",
+    "app/dashboard/page.jsx",
+    "app/page.jsx",
+    ".next/dev/types/**/*.ts"
+  ],
   "exclude": [
     "node_modules"
   ]

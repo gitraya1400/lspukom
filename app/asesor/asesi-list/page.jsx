@@ -1,4 +1,11 @@
-// frontend-lms-v3-master/app/asesor/asesi-list/page.jsx
+/**
+ * Halaman Daftar Asesi (Asesor)
+ * * Halaman ini memungkinkan Asesor untuk:
+ * 1. Melihat daftar asesi yang menjadi tanggung jawabnya.
+ * 2. Menyaring berdasarkan skema, kelas, dan status penilaian.
+ * 3. Mengakses tugas penilaian dan membuka detail penilaian.
+ * 4. Melihat ringkasan jumlah tugas menunggu dan selesai.
+ */
 
 "use client";
 

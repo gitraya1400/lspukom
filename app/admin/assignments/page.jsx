@@ -22,8 +22,9 @@ import {
   mockGetAsesiUsers,
   mockGetAsesorUsers,
   mockGetUnitsForSkema,
-  mockAssignAsesorPerUnit,
+  mockAssignAsesorPerUnit,    
   mockGetAllSkema,
+  mockGetAllPenugasan,  
 } from "@/lib/api-mock";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Save, Search, ChevronLeft, ChevronRight, Info, AlertTriangle } from "lucide-react";
@@ -158,12 +159,42 @@ export default function AssignmentsPage() {
     }
   }
 
+  const loadExistingAssignments = async () => {
+    try {
+      const allAssignments = await mockGetAllPenugasan();
+      
+      // Update State Teori
+      const newTeoriMap = {};
+      const newPraktikumMap = {};
+      const newUnjukDiriMap = {};
+
+      allAssignments.forEach(assign => {
+        if (assign.tipe === "TEORI") {
+          // Kunci state: asesiId-unitId
+          newTeoriMap[`${assign.asesiId}-${assign.unitId}`] = assign.asesorId;
+        } else if (assign.tipe === "PRAKTIKUM") {
+          newPraktikumMap[assign.asesiId] = assign.asesorId;
+        } else if (assign.tipe === "UNJUK_DIRI") {
+          newUnjukDiriMap[assign.asesiId] = assign.asesorId;
+        }
+      });
+
+      setTeoriAssignments(prev => ({ ...prev, ...newTeoriMap }));
+      setPraktikumAssignments(prev => ({ ...prev, ...newPraktikumMap }));
+      setUnjukDiriAssignments(prev => ({ ...prev, ...newUnjukDiriMap }));
+
+    } catch (error) {
+      console.error("Gagal memuat penugasan existing:", error);
+    }
+  };
+
   const loadMasterData = async () => {
     try {
       setLoading(true)
       const [asesiData, asesorData] = await Promise.all([mockGetAsesiUsers(), mockGetAsesorUsers()])
       setAllAsesi(asesiData)
       setAllAsesor(asesorData)
+      await loadExistingAssignments(); 
     } catch (error) {
       console.error("Error memuat data master:", error)
     } finally {

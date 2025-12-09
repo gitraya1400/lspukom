@@ -3,9 +3,9 @@
  *
  * Halaman ini menampilkan daftar lengkap hasil penilaian asesi.
  * Fitur:
- * - Filter berdasarkan Skema, Kelas, dan Status Kelulusan.
- * - Format status teks yang rapi (tanpa underscore).
- * - Tampilan detail yang bersih dan tegas (hitam, non-italic).
+ * - Menangani status "SEDANG_DINILAI" (Asesor sudah ditugaskan).
+ * - Menangani input status berupa Object vs String.
+ * - Tampilan detail (Modal) yang sinkron dengan tabel.
  */
 
 "use client"
@@ -33,37 +33,45 @@ import {
   mockGetAllSkema 
 } from "@/lib/api-mock"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Search, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Info, Clock, HelpCircle, User } from "lucide-react" 
+import { Search, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, Info, Clock, HelpCircle, User, MinusCircle } from "lucide-react" 
 
 const ITEMS_PER_PAGE = 20 
 
 // --- HELPER: Format Teks Status ---
 const formatStatusText = (text) => {
-  if (!text) return "";
+  if (!text) return "-";
   // Ganti underscore dengan spasi
   return text.replace(/_/g, " ");
 }
 
 /**
- * Komponen Badge Status
- * Menampilkan indikator visual yang rapi.
+ * Komponen Badge Status (UPDATED)
+ * Mampu menangani input string maupun object, dan menampilkan status SEDANG_DINILAI.
  */
 const StatusBadge = ({ status }) => {
-  let colorClass = "bg-gray-100 text-gray-600 border border-gray-200"; // Default abu-abu
-  let Icon = HelpCircle;
-  
-  const safeStatus = status || "";
+  // 1. Normalisasi Input: Jika status berupa object, ambil properti .status, jika string pakai langsung
+  const rawStatus = (typeof status === 'object' && status !== null) ? status.status : status;
+  const safeStatus = rawStatus || "BELUM_DINILAI";
 
+  // 2. Default Style (Abu-abu / Belum Dinilai)
+  let colorClass = "bg-gray-100 text-gray-600 border border-gray-200";
+  let Icon = MinusCircle;
+  
+  // 3. Logika Warna & Ikon
   if (safeStatus === "KOMPETEN") {
     colorClass = "bg-green-100 text-green-800 border border-green-200";
     Icon = CheckCircle2;
-  } else if (safeStatus.includes("BELUM KOMPETEN") || safeStatus.includes("BELUM_KOMPETEN")) {
+  } else if (safeStatus.includes("BELUM KOMPETEN") || safeStatus === "BELUM_KOMPETEN") {
     colorClass = "bg-red-100 text-red-800 border border-red-200";
     Icon = AlertCircle;
   } else if (safeStatus === "SEDANG_DINILAI" || safeStatus === "SEDANG DINILAI") {
+    // Logika Khusus: Asesor sudah ditugaskan tapi belum final
     colorClass = "bg-orange-100 text-orange-800 border border-orange-200";
     Icon = Clock;
-  } 
+  } else if (safeStatus === "BELUM_ADA_PENILAIAN" || safeStatus === "BELUM_DINILAI") {
+     // Tetap default abu-abu
+     Icon = HelpCircle;
+  }
 
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${colorClass}`}>
@@ -74,7 +82,8 @@ const StatusBadge = ({ status }) => {
 }
 
 /**
- * Modal Detail Asesi
+ * Modal Detail Asesi (UPDATED)
+ * Menggunakan logic akses data yang aman (?.status).
  */
 const AsesiDetailModal = ({ item, onClose }) => {
   if (!item) return null
@@ -108,6 +117,7 @@ const AsesiDetailModal = ({ item, onClose }) => {
             {/* --- Status Akhir --- */}
             <div className="flex items-center justify-between border-b pb-4">
               <span className="text-sm font-medium text-gray-700">Status Kelulusan Akhir</span>
+              {/* Status Akhir biasanya String */}
               <StatusBadge status={hasilAkhir.statusAkhir} />
             </div>
             
@@ -115,7 +125,8 @@ const AsesiDetailModal = ({ item, onClose }) => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                  <h4 className="text-sm font-bold text-black">Rincian Unit & Penilai</h4>
-                 <StatusBadge status={hasilAkhir.hasilTeori.statusAkumulasi} />
+                 {/* Status Akumulasi Teori */}
+                 <StatusBadge status={hasilAkhir.hasilTeori?.statusAkumulasi} />
               </div>
               
               <div className="space-y-0 divide-y border rounded-lg overflow-hidden">
@@ -138,7 +149,7 @@ const AsesiDetailModal = ({ item, onClose }) => {
 
                       {/* Kanan: Status & Asesor */}
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                         {/* Status Badge */}
+                         {/* Status Badge per Unit */}
                          <StatusBadge status={detail.status} />
                          
                          {/* Asesor: Hitam, Tidak Italic */}
@@ -155,25 +166,35 @@ const AsesiDetailModal = ({ item, onClose }) => {
               </div>
             </div>
 
-            {/* --- Nilai Lainnya --- */}
+            {/* --- Nilai Lainnya (Praktikum & Unjuk Diri) --- */}
             <div className="grid grid-cols-2 gap-4 pt-2">
+              {/* Praktikum */}
               <div className="p-3 border rounded-lg space-y-2">
                 <p className="text-xs font-bold text-gray-500 uppercase">Praktikum</p>
                 <div className="flex flex-col items-start gap-1">
+                   {/* Pass Object lengkap ke StatusBadge (sudah dihandle) atau pass .status */}
                    <StatusBadge status={hasilAkhir.hasilPraktikum} />
+                   
                    <div className="flex items-center gap-1 mt-1">
                       <User className="w-3 h-3 text-black" />
-                      <span className="text-xs font-medium text-black not-italic">{hasilAkhir.asesorPraktikum || '-'}</span>
+                      <span className="text-xs font-medium text-black not-italic">
+                        {hasilAkhir.asesorPraktikum || '-'}
+                      </span>
                    </div>
                 </div>
               </div>
+
+              {/* Unjuk Diri */}
               <div className="p-3 border rounded-lg space-y-2">
                 <p className="text-xs font-bold text-gray-500 uppercase">Unjuk Diri</p>
                 <div className="flex flex-col items-start gap-1">
                    <StatusBadge status={hasilAkhir.hasilUnjukDiri} />
+                   
                    <div className="flex items-center gap-1 mt-1">
                       <User className="w-3 h-3 text-black" />
-                      <span className="text-xs font-medium text-black not-italic">{hasilAkhir.asesorUnjukDiri || '-'}</span>
+                      <span className="text-xs font-medium text-black not-italic">
+                        {hasilAkhir.asesorUnjukDiri || '-'}
+                      </span>
                    </div>
                 </div>
               </div>
@@ -271,7 +292,7 @@ export default function AdminResultsPage() {
       const matchSkema = filterSkema === "SEMUA" || hasil.skemaId === filterSkema
       
       // Update logika filter status (Handle spasi vs underscore)
-      const statusNormalized = hasil.statusAkhir.replace(/_/g, " ");
+      const statusNormalized = (hasil.statusAkhir || "").replace(/_/g, " ");
       const filterNormalized = filterStatus.replace(/_/g, " ");
 
       const matchStatus = filterStatus === "SEMUA" || statusNormalized === filterNormalized;
@@ -346,7 +367,7 @@ export default function AdminResultsPage() {
                 </Select>
               </div>
               
-              {/* Filter Status (DITAMBAHKAN: Sedang Dinilai & Belum Ada Penilaian) */}
+              {/* Filter Status */}
               <div className="md:w-56"> 
                 <Label htmlFor="filter-status">Filter Status Akhir</Label>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -423,15 +444,22 @@ export default function AdminResultsPage() {
                         <TableCell>{item.asesiData.kelas}</TableCell>
                         <TableCell>{item.hasilAkhir.skemaId}</TableCell>
                         
+                        {/* Status Teori: Biasanya String */}
                         <TableCell>
-                          <StatusBadge status={item.hasilAkhir.hasilTeori.statusAkumulasi} />
+                          <StatusBadge status={item.hasilAkhir.hasilTeori?.statusAkumulasi} />
                         </TableCell>
+                        
+                        {/* Status Praktikum: Object { status, nilai, ... } */}
                         <TableCell>
                           <StatusBadge status={item.hasilAkhir.hasilPraktikum} />
                         </TableCell>
+                        
+                        {/* Status Unjuk Diri: Object { status, nilai, ... } */}
                         <TableCell>
                           <StatusBadge status={item.hasilAkhir.hasilUnjukDiri} />
                         </TableCell>
+                        
+                        {/* Status Akhir: String */}
                         <TableCell>
                           <StatusBadge status={item.hasilAkhir.statusAkhir} />
                         </TableCell>

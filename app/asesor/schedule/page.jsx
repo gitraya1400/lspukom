@@ -1,3 +1,10 @@
+/**
+ * Halaman Jadwal & Linimasa (Asesor)
+ * * Fitur:
+ * 1. Menampilkan kalender kegiatan dan sesi ujian.
+ * 2. Menampilkan detail kegiatan per tanggal dan tautan Zoom jika ada.
+ */
+
 "use client"
 
 import React, { useEffect, useState, useMemo } from "react"
@@ -11,7 +18,6 @@ import {
   Clock,
   Link as LinkIcon,
   CalendarDays,
-  Users,
   AlertCircle,
   Info,
   UserCheck,
@@ -21,6 +27,9 @@ import {
 import { mockGetLinimasa, mockGetAsesorUsers } from "@/lib/api-mock"
 import { cn } from "@/lib/utils"
 
+// ===============================================================
+// --- HELPER COMPONENT: Event Tag & Custom Day ---
+// ===============================================================
 const EventTag = ({ event }) => {
   let Icon = Info
   let colors = "bg-blue-500 text-white"
@@ -54,6 +63,7 @@ const EventTag = ({ event }) => {
   )
 }
 
+// Komponen kustom untuk tanggal di kalender agar bisa menampilkan titik/tag event
 const CustomDayButton = ({ linimasa = [], ...props }) => {
   const { day } = props
 
@@ -82,31 +92,14 @@ const CustomDayButton = ({ linimasa = [], ...props }) => {
   )
 }
 
-const StatCard = ({ title, value, icon, colorClass, loading }) => {
-  const Icon = icon
-  return (
-    <Card className="shadow-lg">
-      <CardContent className="p-4 flex items-center justify-between">
-        <div>
-          <p className={cn("text-sm font-medium", colorClass)}>{title}</p>
-          {loading ? (
-            <Skeleton className="h-8 w-12 mt-1" />
-          ) : (
-            <p className="text-3xl font-bold text-gray-900">{value}</p>
-          )}
-        </div>
-        <Icon className={cn("w-10 h-10", colorClass)} />
-      </CardContent>
-    </Card>
-  )
-}
-
+// ===============================================================
+// --- HALAMAN JADWAL ASESOR ---
+// ===============================================================
 export default function AsesorSchedulePage() {
   const { user } = useAuth()
   const [linimasa, setLinimasa] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [stats, setStats] = useState({ total: 0, mingguIni: 0, bulanIni: 0 })
 
   useEffect(() => {
     if (user) loadLinimasa()
@@ -131,23 +124,6 @@ export default function AsesorSchedulePage() {
       }))
 
       setLinimasa(formattedLinimasa)
-
-      const today = new Date()
-      const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay()))
-      const lastDayOfWeek = new Date(firstDayOfWeek)
-      lastDayOfWeek.setDate(lastDayOfWeek.getDate() + 6)
-
-      let mingguIni = 0
-      let bulanIni = 0
-      const currentMonth = new Date().getMonth()
-
-      data.forEach((event) => {
-        const eventDate = new Date(event.tanggal)
-        if (eventDate.getMonth() === currentMonth) bulanIni++
-        if (eventDate >= firstDayOfWeek && eventDate <= lastDayOfWeek) mingguIni++
-      })
-
-      setStats({ total: data.length, mingguIni, bulanIni })
     } catch (error) {
       console.error("Error loading linimasa:", error)
     } finally {
@@ -164,31 +140,11 @@ export default function AsesorSchedulePage() {
   return (
     <MainLayout>
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard
-            title="Total Kegiatan"
-            value={stats.total}
-            icon={CalendarDays}
-            colorClass="text-blue-600"
-            loading={loading}
-          />
-          <StatCard
-            title="Minggu Ini"
-            value={stats.mingguIni}
-            icon={Clock}
-            colorClass="text-blue-600"
-            loading={loading}
-          />
-          <StatCard
-            title="Bulan Ini"
-            value={stats.bulanIni}
-            icon={Users}
-            colorClass="text-blue-600"
-            loading={loading}
-          />
-        </div>
+        
+        {/* BAGIAN KARTU RINGKASAN DIHAPUS SESUAI PERMINTAAN */}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Kalender Besar */}
           <div className="lg:col-span-2">
             <Card className="shadow-lg p-0">
               <CardHeader className="bg-blue-600 text-white rounded-t-xl p-4">
@@ -216,7 +172,8 @@ export default function AsesorSchedulePage() {
               </CardContent>
             </Card>
           </div>
-
+          
+          {/* Detail Kegiatan Tanggal Terpilih */}
           <div className="lg:col-span-1 space-y-4">
             <Card className="shadow-lg sticky top-6 p-0">
               <CardHeader className="bg-gray-800 text-white rounded-t-xl p-4">
