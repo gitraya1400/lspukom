@@ -1,207 +1,192 @@
-"use client"
+/**
+ * Halaman Dashboard Asesor
+ * * Berisi ringkasan tugas penilaian dan akses cepat:
+ * 1. Statistik per jenis ujian (Teori, Praktikum, Unjuk Diri).
+ * 2. Quick actions untuk melihat tugas, daftar asesi, dan jadwal.
+ * 3. Menampilkan banner selamat datang untuk Asesor.
+ */
 
-import { useEffect, useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import { MainLayout } from "@/components/layout/main-layout"
-import { useAuth } from "@/lib/auth-context"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { mockGetProgressAsesi } from "@/lib/api-mock"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Check, Play, Lock } from "lucide-react"
-import Link from "next/link"
+"use client";
 
-const FaseCard = ({ fase, judul, deskripsi, status, link, progressValue }) => {
-  let statusButton
+import React, { useEffect, useState } from "react";
+import { MainLayout } from "@/components/layout/main-layout";
+import { useAuth } from "@/lib/auth-context";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { mockGetPenugasanAsesor } from "@/lib/api-mock"; 
+import { Skeleton } from "@/components/ui/skeleton";
+import { CheckSquare, Users, Calendar, BookText, FlaskConical, Mic } from "lucide-react"; 
+import Link from "next/link";
+import { cn } from "@/lib/utils"; 
 
-  if (status === "SELESAI") {
-    statusButton = (
-      <div className="flex items-center gap-2 px-4 py-2 bg-green-100 rounded-md">
-        <Check className="w-5 h-5 text-green-700" />
-        <span className="font-medium text-green-700">Selesai</span>
-      </div>
-    )
-  } else if (status === "TERKUNCI") {
-     statusButton = (
-      <Button size="lg" disabled={true} variant="outline">
-        <Lock className="w-4 h-4 mr-2" />
-        Terkunci
-      </Button>
-    )
-  } else {
-    statusButton = (
-      <Button size="lg" asChild className="bg-blue-600 hover:bg-blue-700">
-        <Link href={link}>
-          <Play className="w-4 h-4 mr-2" />
-          Mulai
-        </Link>
-      </Button>
-    )
-  }
-
+// ===============================================================
+// --- KOMPONEN 'StatTypeCard' (KARTU STATISTIK) ---
+// ===============================================================
+/**
+ * Menampilkan statistik tugas per kategori (Teori/Praktikum/Unjuk Diri)
+ * dengan warna border yang berbeda-beda.
+ */
+  const StatTypeCard = ({ title, icon, stats, colorClass, loading }) => {
+  const Icon = icon;
+  
+  // Tentukan warna teks untuk angka (misal: menunggu = oranye)
+  const pendingColor = stats?.pending > 0 ? "text-orange-600" : "text-gray-900";
+  const completedColor = stats?.completed > 0 ? "text-green-600" : "text-gray-900";
+  
   return (
-    <Card className="shadow-sm">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-blue-600">{fase}</p>
-            <h3 className="text-xl font-bold text-gray-900 mt-1">{judul}</h3>
-            <p className="text-gray-500 mt-2">{deskripsi}</p>
-          </div>
-          <div className="ml-6 flex-shrink-0">
-            {statusButton}
-          </div>
-        </div>
-        
-        {progressValue !== undefined && status !== "SELESAI" && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex justify-between text-sm text-gray-500 mb-1">
-                <span>Progress Pembelajaran</span>
-                <span>{progressValue}%</span>
+    // Tambahkan border atas berwarna
+    <Card className={cn("hover:shadow-lg transition-shadow border-t-4", colorClass)}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-3 text-lg">
+          
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        {loading || !stats ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <>
+            <div className="flex justify-between items-center border-b pb-2">
+              <span className="text-muted-foreground">Total Tugas</span>
+              <span className="font-bold text-lg">{stats.total}</span>
             </div>
-            <Progress value={progressValue} className="h-2" />
-          </div>
+            <div className="flex justify-between items-center border-b pb-2">
+              <span className="text-muted-foreground">Menunggu Penilaian</span>
+              <span className={cn("font-bold text-lg", pendingColor)}>{stats.pending}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Sudah Dinilai</span>
+              <span className={cn("font-bold text-lg", completedColor)}>{stats.completed}</span>
+            </div>
+            {/* Bagian Rata-rata Nilai TELAH DIHAPUS */}
+          </>
         )}
       </CardContent>
     </Card>
-  )
-}
+  );
+};
 
+// ===============================================================
+// --- HALAMAN UTAMA DASHBOARD ASESOR ---
+// ===============================================================
 
-export default function AsesiDashboard() {
-  const { user, loading: isAuthLoading } = useAuth() 
-  const router = useRouter()
-  const [progress, setProgress] = useState(null)
-  const [loading, setLoading] = useState(true)
+export default function AsesorDashboard() {
+  const { user } = useAuth();
+  // State untuk menampung statistik per kategori {teori, praktikum, unjukDiri}
+  const [stats, setStats] = useState(null); 
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isAuthLoading) {
-      return; 
+    if (user) {
+      loadStats();
     }
-    if (!user) {
-      router.push("/login"); 
-      return;
-    }
-    loadData()
-  }, [user, isAuthLoading, router])
+  }, [user]);
 
-  const loadData = async () => {
+  /**
+   * Mengambil data penugasan dan menghitung statistik secara manual di sisi klien.
+   */
+  const loadStats = async () => {
     try {
-      setLoading(true)
-      if (!user) return
-
-      const progressData = await mockGetProgressAsesi(user.id)
+      setLoading(true);
+      const penugasanData = await mockGetPenugasanAsesor(user.id);
       
-      if (progressData.statusPraAsesmen === "BELUM") {
-        router.push("/asesi/pra-asesmen")
-        return 
-      }
+      // 1. Pisahkan tugas berdasarkan tipe ujian
+      const teoriTasks = penugasanData.filter(p => p.tipe === 'TEORI');
+      const praktikumTasks = penugasanData.filter(p => p.tipe === 'PRAKTIKUM');
+      const unjukDiriTasks = penugasanData.filter(p => p.tipe === 'UNJUK_DIRI');
 
-      setProgress(progressData)
+      // 2. Helper untuk menghitung jumlah pending/completed
+      const calcStats = (tasks) => ({
+        total: tasks.length,
+        pending: tasks.filter(p => p.statusPenilaian === 'BELUM_DINILAI').length,
+        completed: tasks.filter(p => p.statusPenilaian === 'SELESAI').length,
+      });
 
+      // 3. Update state statistik
+      setStats({
+        teori: calcStats(teoriTasks),
+        praktikum: calcStats(praktikumTasks),
+        unjukDiri: calcStats(unjukDiriTasks),
+      });
+      
     } catch (error) {
-      console.error("Error loading data:", error)
+      console.error("Error loading stats:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
   
-  const overallProgress = useMemo(() => {
-    if (!progress) return 0;
-    
-    let total = 0;
-    
-    // Fase 1: Pembelajaran (40%)
-    total += (progress.progressPembelajaran || 0) * 0.4;
-    
-    // Fase 2: Tryout (15%)
-    if (progress.tryoutSelesai) total += 15;
-    
-    // Fase 3: Ujian Teori (15%)
-    if (progress.ujianTeoriSelesai) total += 15;
-    
-    // Fase 3: Ujian Praktikum (15%)
-    if (progress.ujianPraktikumSelesai) total += 15;
-    
-    // Fase 3: Unjuk Diri (15%)
-    if (progress.unjukDiriSelesai) total += 15;
-    
-    return Math.round(total);
-  }, [progress]);
-  
-  if (loading || isAuthLoading || !progress) {
-     return (
-      <MainLayout>
-        <div className="p-6 space-y-4">
-          <Skeleton className="h-40 w-full bg-gray-200" />
-          <Skeleton className="h-24 w-full bg-gray-200" />
-          <Skeleton className="h-24 w-full bg-gray-200" />
-        </div>
-      </MainLayout>
-    )
-  }
-
-  const progressPercentage = progress?.progressPembelajaran || 0
-  const statusFase1 = progressPercentage === 100 ? "SELESAI" : "AKTIF"
-  
-  let statusFase2 = "TERKUNCI"
-  if (statusFase1 === "SELESAI") {
-    statusFase2 = progress.tryoutSelesai ? "SELESAI" : "AKTIF"
-  }
-  
-  let statusFase3 = "TERKUNCI"
-  if (statusFase2 === "SELESAI") {
-    // Fase 3 selesai hanya jika semua ujian (teori, praktikum, unjuk diri) sudah selesai
-    if (progress.ujianTeoriSelesai && progress.ujianPraktikumSelesai && progress.unjukDiriSelesai) {
-      statusFase3 = "SELESAI"
-    } else {
-      statusFase3 = "AKTIF"
-    }
-  }
-
   return (
     <MainLayout>
       <div className="p-6 space-y-6">
         
-        <div className="w-full bg-blue-700 text-white rounded-lg p-8 space-y-4">
-            <h1 className="text-3xl font-bold">Selamat Datang, {user?.nama}!</h1>
-            <p className="text-blue-200 mt-1">Ikuti 3 fase untuk menyelesaikan sertifikasi.</p>
-            
-            <div className="pt-2">
-              <div className="flex justify-between text-sm font-medium text-blue-100 mb-1">
-                <span>Progress Keseluruhan</span>
-                <span>{overallProgress}%</span>
-              </div>
-              <Progress value={overallProgress} className="h-3 bg-white/20" indicatorClassName="bg-white" />
-            </div>
+        {/* 1. Banner Selamat Datang */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg p-8 shadow-lg">
+          <h1 className="text-3xl font-bold">Selamat Datang, {user?.nama}!</h1>
+          <p className="text-purple-200 mt-1">Selamat datang kembali! Kelola tugas penilaian dan berikan umpan balik kepada asesi.</p>
         </div>
 
-        <div className="space-y-4">
-          <FaseCard 
-            fase="Fase 1: Pembelajaran"
-            judul="Pembelajaran"
-            deskripsi="Pelajari semua materi untuk membuka tryout"
-            status={statusFase1}
-            link="/asesi/learning"
-            progressValue={progressPercentage}
+        {/* 2. Judul Statistik */}
+         <div>
+            <h2 className="text-2xl font-semibold flex items-center gap-2">
+              <CheckSquare className="w-6 h-6 text-gray-700" />
+              Statistik Tugas Penilaian Berdasarkan Jenis Ujian
+            </h2>
+            <p className="text-muted-foreground mt-1"></p>
+          </div>
+
+        {/* 3. Grid Statistik */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatTypeCard 
+            title="Ujian Teori"
+            icon={BookText}
+            stats={stats?.teori}
+            colorClass="border-yellow-500" 
+            loading={loading}
           />
-          <FaseCard 
-            fase="Fase 2: Tryout"
-            judul="Tryout"
-            deskripsi="Kerjakan tryout sebelum memulai ujian"
-            status={statusFase2}
-            link="/asesi/tryout"
+          <StatTypeCard 
+            title="Ujian Praktikum"
+            icon={FlaskConical}
+            stats={stats?.praktikum}
+            colorClass="border-green-500" 
+            loading={loading}
           />
-          <FaseCard 
-            fase="Fase 3: Ujian Kompetensi"
-            judul="Ujian Teori, Praktikum & Unjuk Diri"
-            deskripsi="Masuk ke hub ujian untuk melihat jadwal dan mengerjakan ujian."
-            status={statusFase3}
-            link="/asesi/exams"
+          <StatTypeCard 
+            title="Unjuk Diri"
+            icon={Mic} 
+            stats={stats?.unjukDiri}
+            colorClass="border-purple-500" 
+            loading={loading}
           />
         </div>
+
+        {/* 4. Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Akses Cepat</CardTitle>
+            <CardDescription></CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button asChild variant="outline" className="justify-start p-6 text-base">
+              <Link href="/asesor/grading">
+                <CheckSquare className="w-5 h-5 mr-3" /> Lihat Semua Tugas Penilaian
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="justify-start p-6 text-base">
+              <Link href="/asesor/asesi-list">
+                <Users className="w-5 h-5 mr-3" /> Lihat Daftar Asesi
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="justify-start p-6 text-base">
+              <Link href="/asesor/schedule">
+                <Calendar className="w-5 h-5 mr-3" /> Lihat Jadwal
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        
       </div>
     </MainLayout>
-  )
+  );
 }
