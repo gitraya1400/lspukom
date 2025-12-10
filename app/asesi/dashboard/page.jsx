@@ -120,7 +120,7 @@ export default function AsesiDashboard() {
     
     if (progress.ujianPraktikumSelesai) total += 15; 
 
-    if (progress.ujianUnjukDiriSelesai) total += 15;
+    if (progress.unjukDiriSelesai) total += 15;
     
     return Math.round(total);
   }, [progress]);
@@ -138,17 +138,21 @@ export default function AsesiDashboard() {
   }
 
   const progressPercentage = progress?.progressPembelajaran || 0
-  const statusFase1 = progressPercentage === 100 ? "SELESAI" : "AKTIF"
-  
-  let statusFase2 = "TERKUNCI"
-  if (statusFase1 === "SELESAI") {
-    statusFase2 = progress.tryoutSelesai ? "SELESAI" : "AKTIF"
-  }
-  
-  let statusFase3 = "TERKUNCI"
-  if (statusFase2 === "SELESAI") {
-    statusFase3 = "AKTIF" 
-  }
+const statusFase1 = progressPercentage === 100 ? "SELESAI" : "AKTIF"
+
+let statusFase2 = "TERKUNCI"
+if (statusFase1 === "SELESAI") {
+  statusFase2 = progress.tryoutSelesai ? "SELESAI" : "AKTIF"
+}
+
+let statusFase3 = "TERKUNCI"
+if (statusFase2 === "SELESAI") {
+  // ✅ Cek apakah SEMUA ujian sudah selesai
+  const semuaUjianSelesai = progress.ujianTeoriSelesai && 
+                            progress.ujianPraktikumSelesai && 
+                            progress.unjukDiriSelesai;
+  statusFase3 = semuaUjianSelesai ? "SELESAI" : "AKTIF"
+}
 
   return (
     <MainLayout>

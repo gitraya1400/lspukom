@@ -284,6 +284,9 @@ export default function ExamsPage() {
                   <LockAlert message="Anda harus menyelesaikan Pembelajaran dan Tryout terlebih dahulu." />
                 )}
                 
+                {praktikum.status === "MENUNGGU_JADWAL" && (
+        <WaitAlert message="Anda sudah siap. Silakan tunggu Admin menjadwalkan sesi Unjuk Diri Anda terlebih dahulu." />
+      )}
                 {praktikum.status === "SELESAI" && (
                   <SuccessAlert message="Anda telah mengunggah file jawaban. Silakan tunggu jadwal Unjuk Diri." />
                 )}
